@@ -5,7 +5,7 @@
   <title>Task 360 | KPI 360 2</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=zoom67-wide-table-20261021">
+  <link rel="stylesheet" href="/static/style.css?v=simple-table-chart-fit-20261021-v2">
   <style>
       /* Fix for Calendar Icon appearing dark on dark mode */
       input[type="date"] { color-scheme: light; }
@@ -86,11 +86,11 @@
             <h3 class="text-lg font-semibold border-b pb-2" style="border-color:var(--border)" id="bar-title">FMS – Finished vs Deferred</h3>
             <button id="drill-back" class="btn text-xs" style="display:none">Back</button>
           </div>
-          <div class="h-80"><canvas id="fmsBarChart"></canvas></div>
+          <div class="chart-frame chart-frame--bar"><canvas id="fmsBarChart"></canvas></div>
         </div>
         <div class="card p-4 flex flex-col justify-between items-center">
           <h3 class="text-lg font-semibold mb-3 border-b w-full pb-2" style="border-color:var(--border)">Overall Task Completion Status</h3>
-          <div class="w-full max-w-sm"><canvas id="statusDoughnutChart"></canvas></div>
+          <div class="chart-frame chart-frame--doughnut"><canvas id="statusDoughnutChart"></canvas></div>
         </div>
       </section>
 
@@ -139,7 +139,7 @@
     </div>
   </main>
 
-  <script src="/static/app.js?v=zoom67-wide-table-20261021"></script>
+  <script src="/static/app.js?v=simple-table-chart-fit-20261021-v2"></script>
   <script>
     // Keep the active employee identity when switching between the two dashboards.
     document.querySelectorAll('[data-kpi-route]').forEach((link) => {
