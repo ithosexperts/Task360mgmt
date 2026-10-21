@@ -5,7 +5,7 @@
   <title>Task 360 | KPI 360 2</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=offwhite-20261021">
+  <link rel="stylesheet" href="/static/style.css?v=zoom67-20261021">
   <style>
       /* Fix for Calendar Icon appearing dark on dark mode */
       input[type="date"] { color-scheme: light; }
@@ -96,11 +96,8 @@
 
       <section id="database-section" class="card p-4 space-y-4">
         <h2 class="text-xl font-semibold border-b pb-2" style="border-color:var(--border)">Full Database View (All Records)</h2>
-        <div class="scroll-area">
-          <table id="data-table" class="min-w-full">
-            <thead><tr id="table-header-row"></tr></thead>
-            <tbody id="table-body"><tr><td colspan="12" class="p-4 text-center muted">Loading data...</td></tr></tbody>
-          </table>
+        <div id="table-body" class="record-list" aria-live="polite">
+          <div class="record-list-message">Loading data...</div>
         </div>
         
         <div id="pagination-controls" class="flex flex-col md:flex-row justify-between items-center mt-4 border-t pt-3 gap-4" style="border-color:var(--border); display:none;">
@@ -142,7 +139,7 @@
     </div>
   </main>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=record-cards-20261021"></script>
   <script>
     // Keep the active employee identity when switching between the two dashboards.
     document.querySelectorAll('[data-kpi-route]').forEach((link) => {
