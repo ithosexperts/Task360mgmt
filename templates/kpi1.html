@@ -153,37 +153,19 @@ input[type="date"] { color-scheme: light; }
 
 
 
-/* Record-oriented database view: values stack vertically beneath labels. */
-.record-list { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* Full database view: standard wide table, not vertically stacked cards. */
+.record-table-wrap { display: block; width: 100%; max-width: 100%; overflow-x: auto; overflow-y: visible; }
 .record-list-message { padding: 18px; text-align: center; color: var(--muted); }
-.record-card { background: #FFFFFF; border: 1px solid var(--border); border-radius: 14px; padding: 16px; box-shadow: 0 4px 14px rgba(62,62,117,.07); min-width: 0; }
-.record-card__head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
-.record-card__title { margin: 0; color: var(--brand-purple); font-size: 1rem; font-weight: 800; overflow-wrap: anywhere; }
-.record-status { display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid var(--border); background: #F2EDF6; color: var(--brand-indigo); padding: 4px 10px; font-size: .75rem; font-weight: 800; max-width: 100%; overflow-wrap: anywhere; }
-.record-status--finished { background: #E4F6F2; color: #246D68; border-color: #A8DCD3; }
-.record-status--deferred { background: #F3E8F7; color: #4E1F6E; border-color: #D5BDE3; }
-.record-status--pending { background: #E9EAF7; color: #3E3E75; border-color: #C8C9E4; }
-.record-section { margin-top: 12px; border: 1px solid var(--border); border-radius: 11px; padding: 12px; min-width: 0; }
-.record-section--task { background: #FBF8FD; }
-.record-section--info { background: #F2FBF9; }
-.record-section--extra { background: #FAF9F6; }
-.record-section__title { color: var(--brand-purple); font-size: .88rem; font-weight: 800; margin: 0 0 10px; }
-.record-fields-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.record-field { min-width: 0; border: 1px solid #E5DFEB; background: #FFFFFF; border-radius: 9px; padding: 9px 10px; }
-.record-field__label { display: block; color: #665B70; font-size: .73rem; line-height: 1.25; font-weight: 800; margin-bottom: 5px; }
-.record-field__value { display: block; color: #30233A; font-size: .88rem; line-height: 1.4; font-weight: 600; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
-.record-more { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 10px; }
-.record-more summary { color: var(--brand-indigo); font-size: .8rem; font-weight: 800; cursor: pointer; padding: 4px 0; }
-.record-more[open] .record-section { margin-top: 8px; }
-@media (max-width: 900px) { .record-fields-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 540px) { .record-card { padding: 10px; } .record-section { padding: 9px; } .record-fields-grid { grid-template-columns: minmax(0, 1fr); } .record-field { padding: 8px; } }
+.data-record-table { width: 100%; min-width: 1800px; table-layout: auto; border-collapse: separate; border-spacing: 0; }
+.data-record-table thead th { position: sticky; top: 0; background: var(--bg-elev); color: var(--brand-indigo); border-bottom: 2px solid var(--brand-teal); padding: 10px 12px; font-size: .76rem; line-height: 1.2; white-space: normal; overflow-wrap: anywhere; vertical-align: bottom; text-align: left; }
+.data-record-table tbody td { min-width: 82px; max-width: 300px; padding: 9px 12px; color: var(--text); border-bottom: 1px solid var(--border); white-space: normal; overflow-wrap: anywhere; word-break: break-word; vertical-align: top; line-height: 1.3; }
+.data-record-table tbody tr:nth-child(even) { background: #FBFAFD; }
+.data-record-table tbody tr:hover { background: color-mix(in oklab, var(--brand-mint) 28%, #FFFFFF); }
+.data-record-table .cell-status--finished { color: #247979; font-weight: 700; }
+.data-record-table .cell-status--deferred { color: var(--brand-purple); font-weight: 700; }
+.data-record-table .cell-status--pending { color: var(--brand-indigo); font-weight: 600; }
 
-
-/* The requested task fields are listed vertically (label above value), not in a wide table row. */
-.record-section--task .record-fields-grid,
-.record-section--info .record-fields-grid { grid-template-columns: minmax(0, 1fr); }
-
-  </style>
+</style>
 </head>
 <body>
 
@@ -236,7 +218,7 @@ input[type="date"] { color-scheme: light; }
 
     <section id="database-section" class="card p-4 space-y-4">
       <h2 class="text-xl font-semibold border-b pb-2" style="border-color:var(--border)">Full Database View (All Records)</h2>
-      <div id="table-body" class="record-list" aria-live="polite">
+      <div id="table-body" class="record-table-wrap" aria-live="polite">
         <div class="record-list-message">Loading data...</div>
       </div>
       <div id="pagination-controls" class="pt-3 border-t flex flex-wrap items-center justify-between gap-4" style="border-color:var(--border)">
@@ -587,107 +569,70 @@ function toHours(val) {
       document.getElementById('ld-drill-back').style.display = (LD_DRILL.fms || LD_DRILL.stage) ? 'inline-block' : 'none';
     }
 
-    function normaliseHeaderName(value) {
-      return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    }
-
-    function createRecordField(label, value) {
-      const field = document.createElement('div'); field.className = 'record-field';
-      const labelEl = document.createElement('span'); labelEl.className = 'record-field__label'; labelEl.textContent = label;
-      const valueEl = document.createElement('span'); valueEl.className = 'record-field__value';
-      valueEl.textContent = value == null || String(value).trim() === '' ? '—' : String(value);
-      field.append(labelEl, valueEl); return field;
-    }
-
-    function createRecordSection(title, fields, row, variant = '') {
-      const available = fields.filter(field => field.index >= 0);
-      if (!available.length) return null;
-      const section = document.createElement('section'); section.className = `record-section ${variant}`.trim();
-      const heading = document.createElement('h3'); heading.className = 'record-section__title'; heading.textContent = title;
-      const grid = document.createElement('div'); grid.className = 'record-fields-grid';
-      available.forEach(field => grid.appendChild(createRecordField(field.label, row[field.index])));
-      section.append(heading, grid); return section;
-    }
-
     function renderTable(data){
-      const tBody = document.getElementById('table-body');
-      if (!tBody) return;
-      tBody.innerHTML = '';
+      const container = document.getElementById('table-body');
+      if (!container) return;
+      container.className = 'record-table-wrap';
+      container.innerHTML = '';
 
-      const headerIndex = new Map();
-      HEADERS.forEach((header, index) => { const key = normaliseHeaderName(header); if (!headerIndex.has(key)) headerIndex.set(key, index); });
-      const findIndex = (...labels) => {
-        for (const label of labels) { const index = headerIndex.get(normaliseHeaderName(label)); if (index != null) return index; }
-        return -1;
-      };
-
-      const totalRecs = data.length;
+      const rows = Array.isArray(data) ? data : [];
+      const totalRecs = rows.length;
       const totalPages = Math.ceil(totalRecs / ROWS_PER_PAGE) || 1;
-      if (CURRENT_PAGE > totalPages) CURRENT_PAGE = totalPages;
-      if (CURRENT_PAGE < 1) CURRENT_PAGE = 1;
+      CURRENT_PAGE = Math.max(1, Math.min(CURRENT_PAGE, totalPages));
       const startIdx = (CURRENT_PAGE - 1) * ROWS_PER_PAGE;
       const endIdx = Math.min(startIdx + ROWS_PER_PAGE, totalRecs);
-      const pageData = data.slice(startIdx, endIdx);
+      const pageData = rows.slice(startIdx, endIdx);
 
       if (!pageData.length) {
-        const empty = document.createElement('div'); empty.className = 'record-list-message'; empty.textContent = 'No records found matching criteria.'; tBody.appendChild(empty);
+        const empty = document.createElement('div');
+        empty.className = 'record-list-message';
+        empty.textContent = 'No records found matching criteria.';
+        container.appendChild(empty);
       } else {
-        const detailFields = [
-          { label: 'FMS Name', index: findIndex('FMS Name') },
-          { label: 'Stage Name', index: findIndex('Stage Name') },
-          { label: 'Planned', index: findIndex('Planned') },
-          { label: 'Doer Name', index: findIndex('Doer Name') },
-        ];
-        const rawStatusHeader = HEADERS.find(h => /^Raw KPI0[12] Status$/i.test(String(h).trim()));
-        const infoFields = [
-          { label: 'KPI Record Key', index: findIndex('KPI Record Key') },
-          { label: 'Manager Name', index: findIndex('Manager Name') },
-          { label: 'Manager Chain', index: findIndex('Manager Chain') },
-          { label: rawStatusHeader || 'Raw KPI Status', index: rawStatusHeader ? findIndex(rawStatusHeader) : -1 },
-        ];
-        const recordIdx = findIndex('Record #'), statusIdx = findIndex('Task Status');
-        const usedIndices = new Set([recordIdx, statusIdx, ...detailFields.map(f => f.index), ...infoFields.map(f => f.index)].filter(i => i >= 0));
-        const fragment = document.createDocumentFragment();
-
-        pageData.forEach(row => {
-          const card = document.createElement('article'); card.className = 'record-card';
-          const head = document.createElement('div'); head.className = 'record-card__head';
-          const title = document.createElement('h3'); title.className = 'record-card__title';
-          const recordNo = recordIdx >= 0 ? row[recordIdx] : '';
-          title.textContent = recordNo != null && String(recordNo).trim() !== '' ? `Record # ${recordNo}` : 'Task Record'; head.appendChild(title);
-          const statusText = statusIdx >= 0 ? String(row[statusIdx] ?? '').trim() : '';
-          if (statusText) {
-            const status = document.createElement('span'); status.className = 'record-status'; status.textContent = statusText;
-            const lower = statusText.toLowerCase();
-            if (lower.includes('finish') || lower.includes('complete') || lower.includes('done-on-time')) status.classList.add('record-status--finished');
-            else if (lower.includes('defer') || lower.includes('delay') || lower.includes('overdue')) status.classList.add('record-status--deferred');
-            else status.classList.add('record-status--pending');
-            head.appendChild(status);
-          }
-          card.appendChild(head);
-
-          const taskSection = createRecordSection('Task Details', detailFields, row, 'record-section--task');
-          const infoSection = createRecordSection('Task Info', infoFields, row, 'record-section--info');
-          if (taskSection) card.appendChild(taskSection);
-          if (infoSection) card.appendChild(infoSection);
-
-          const extraFields = HEADERS.map((label, index) => ({ label, index }))
-            .filter(field => !usedIndices.has(field.index) && row[field.index] != null && String(row[field.index]).trim() !== '');
-          if (extraFields.length) {
-            const more = document.createElement('details'); more.className = 'record-more';
-            const summary = document.createElement('summary'); summary.textContent = `Additional KPI Metrics (${extraFields.length})`;
-            const extraSection = createRecordSection('Additional KPI Metrics', extraFields, row, 'record-section--extra');
-            more.appendChild(summary); if (extraSection) more.appendChild(extraSection); card.appendChild(more);
-          }
-          fragment.appendChild(card);
+        const table = document.createElement('table');
+        table.className = 'data-record-table';
+        table.setAttribute('aria-label', 'Full database records');
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        HEADERS.forEach(header => {
+          const th = document.createElement('th');
+          th.className = 'wrap-th';
+          th.textContent = String(header ?? '');
+          headerRow.appendChild(th);
         });
-        tBody.appendChild(fragment);
+        thead.appendChild(headerRow);
+
+        const tbody = document.createElement('tbody');
+        const fragment = document.createDocumentFragment();
+        pageData.forEach(row => {
+          const tr = document.createElement('tr');
+          HEADERS.forEach((header, index) => {
+            const td = document.createElement('td');
+            const value = Array.isArray(row) ? row[index] : (row && typeof row === 'object' ? row[header] : '');
+            td.textContent = value == null || String(value).trim() === '' ? '—' : String(value);
+            if (String(header).trim().toLowerCase() === 'task status') {
+              const status = String(value ?? '').trim().toLowerCase();
+              if (status.includes('finish') || status.includes('complete') || status.includes('done-on-time')) td.classList.add('cell-status--finished');
+              else if (status.includes('defer') || status.includes('delay') || status.includes('overdue')) td.classList.add('cell-status--deferred');
+              else td.classList.add('cell-status--pending');
+            }
+            tr.appendChild(td);
+          });
+          fragment.appendChild(tr);
+        });
+        tbody.appendChild(fragment);
+        table.append(thead, tbody);
+        container.appendChild(table);
       }
 
-      document.getElementById('page-info').textContent = `Showing ${totalRecs ? startIdx + 1 : 0} to ${endIdx} of ${totalRecs} records`;
-      document.getElementById('page-number-display').textContent = `Page ${CURRENT_PAGE} of ${totalPages}`;
-      document.getElementById('btn-prev-page').disabled = CURRENT_PAGE === 1;
-      document.getElementById('btn-next-page').disabled = CURRENT_PAGE === totalPages;
+      const pageInfo = document.getElementById('page-info');
+      if (pageInfo) pageInfo.textContent = `Showing ${totalRecs ? startIdx + 1 : 0} to ${endIdx} of ${totalRecs} records`;
+      const pageNumber = document.getElementById('page-number-display');
+      if (pageNumber) pageNumber.textContent = `Page ${CURRENT_PAGE} of ${totalPages}`;
+      const prev = document.getElementById('btn-prev-page');
+      if (prev) prev.disabled = CURRENT_PAGE === 1;
+      const next = document.getElementById('btn-next-page');
+      if (next) next.disabled = CURRENT_PAGE === totalPages;
     }
 
     function changePage(step){
