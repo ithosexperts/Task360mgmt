@@ -179,34 +179,17 @@ input[type="date"] { color-scheme: light; }
 .btn[aria-current="page"], a[aria-current="page"] { background: var(--brand-purple); color: #FFFFFF; }
 
 
-/* Record-oriented database view: values stack vertically beneath labels. */
-.record-list { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* Full database view: restore the standard wide table layout. */
+.record-table-wrap { display: block; width: 100%; max-width: 100%; overflow-x: auto; overflow-y: visible; }
 .record-list-message { padding: 18px; text-align: center; color: var(--muted); }
-.record-card { background: #FFFFFF; border: 1px solid var(--border); border-radius: 14px; padding: 16px; box-shadow: 0 4px 14px rgba(62,62,117,.07); min-width: 0; }
-.record-card__head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
-.record-card__title { margin: 0; color: var(--brand-purple); font-size: 1rem; font-weight: 800; overflow-wrap: anywhere; }
-.record-status { display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid var(--border); background: #F2EDF6; color: var(--brand-indigo); padding: 4px 10px; font-size: .75rem; font-weight: 800; max-width: 100%; overflow-wrap: anywhere; }
-.record-status--finished { background: #E4F6F2; color: #246D68; border-color: #A8DCD3; }
-.record-status--deferred { background: #F3E8F7; color: #4E1F6E; border-color: #D5BDE3; }
-.record-status--pending { background: #E9EAF7; color: #3E3E75; border-color: #C8C9E4; }
-.record-section { margin-top: 12px; border: 1px solid var(--border); border-radius: 11px; padding: 12px; min-width: 0; }
-.record-section--task { background: #FBF8FD; }
-.record-section--info { background: #F2FBF9; }
-.record-section--extra { background: #FAF9F6; }
-.record-section__title { color: var(--brand-purple); font-size: .88rem; font-weight: 800; margin: 0 0 10px; }
-.record-fields-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.record-field { min-width: 0; border: 1px solid #E5DFEB; background: #FFFFFF; border-radius: 9px; padding: 9px 10px; }
-.record-field__label { display: block; color: #665B70; font-size: .73rem; line-height: 1.25; font-weight: 800; margin-bottom: 5px; }
-.record-field__value { display: block; color: #30233A; font-size: .88rem; line-height: 1.4; font-weight: 600; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
-.record-more { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 10px; }
-.record-more summary { color: var(--brand-indigo); font-size: .8rem; font-weight: 800; cursor: pointer; padding: 4px 0; }
-.record-more[open] .record-section { margin-top: 8px; }
-@media (max-width: 900px) { .record-fields-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 540px) { .record-card { padding: 10px; } .record-section { padding: 9px; } .record-fields-grid { grid-template-columns: minmax(0, 1fr); } .record-field { padding: 8px; } }
-
-/* The requested task fields are listed vertically (label above value), not in a wide table row. */
-.record-section--task .record-fields-grid,
-.record-section--info .record-fields-grid { grid-template-columns: minmax(0, 1fr); }
+.data-record-table { width: 100%; min-width: 1800px; table-layout: auto; border-collapse: separate; border-spacing: 0; }
+.data-record-table thead th { position: sticky; top: 0; background: var(--bg-elev); color: var(--brand-indigo); border-bottom: 2px solid var(--brand-teal); padding: 10px 12px; font-size: .76rem; line-height: 1.2; white-space: normal; overflow-wrap: anywhere; vertical-align: bottom; text-align: left; }
+.data-record-table tbody td { min-width: 82px; max-width: 300px; padding: 9px 12px; color: var(--text); border-bottom: 1px solid var(--border); white-space: normal; overflow-wrap: anywhere; word-break: break-word; vertical-align: top; line-height: 1.3; }
+.data-record-table tbody tr:nth-child(even) { background: #FBFAFD; }
+.data-record-table tbody tr:hover { background: color-mix(in oklab, var(--brand-mint) 28%, #FFFFFF); }
+.data-record-table .cell-status--finished { color: #247979; font-weight: 700; }
+.data-record-table .cell-status--deferred { color: var(--brand-purple); font-weight: 700; }
+.data-record-table .cell-status--pending { color: var(--brand-indigo); font-weight: 600; }
 
 /* Desktop default visual scale: equivalent to 67% browser zoom.
    Keep mobile layouts at their normal scale for legibility. */
