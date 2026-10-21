@@ -165,6 +165,17 @@ input[type="date"] { color-scheme: light; }
 .data-record-table .cell-status--deferred { color: var(--brand-purple); font-weight: 700; }
 .data-record-table .cell-status--pending { color: var(--brand-indigo); font-weight: 600; }
 
+/* Explicit chart frame size: make every canvas fill the visible chart card. */
+#chart-section > .card, #lead-delay-section > .card { min-width: 0; min-height: 400px; overflow: hidden; }
+.chart-frame { position: relative; display: block; width: 100%; min-width: 0; height: 330px; min-height: 280px; }
+.chart-frame--doughnut { flex: 1 1 auto; width: 100%; max-width: none; height: 330px; min-height: 280px; align-self: stretch; }
+.chart-frame canvas { display: block; width: 100% !important; height: 100% !important; max-width: 100%; }
+.record-table-wrap { min-height: 56px; }
+@media (max-width: 900px) {
+  #chart-section > .card, #lead-delay-section > .card { min-height: 340px; }
+  .chart-frame, .chart-frame--doughnut { height: 280px; min-height: 240px; }
+}
+
 </style>
 </head>
 <body>
@@ -208,12 +219,12 @@ input[type="date"] { color-scheme: light; }
     </section>
 
     <section id="chart-section" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="card p-4"><div class="flex items-center justify-between mb-3"><h3 class="text-lg font-semibold border-b pb-2 w-full" style="border-color:var(--border)" id="bar-title">FMS – Done On-Time vs Done Delayed</h3><button id="drill-back" class="btn text-xs ml-2" style="display:none" onclick="clearDrill(); renderAll(false);">Back</button></div><div class="h-80"><canvas id="fmsBarChart"></canvas></div></div>
-      <div class="card p-4 flex flex-col justify-between items-center"><h3 class="text-lg font-semibold mb-3 border-b w-full pb-2" style="border-color:var(--border)">Overall Task Completion Status</h3><div class="w-full max-w-sm"><canvas id="statusDoughnutChart"></canvas></div></div>
+      <div class="card p-4"><div class="flex items-center justify-between mb-3"><h3 class="text-lg font-semibold border-b pb-2 w-full" style="border-color:var(--border)" id="bar-title">FMS – Done On-Time vs Done Delayed</h3><button id="drill-back" class="btn text-xs ml-2" style="display:none" onclick="clearDrill(); renderAll(false);">Back</button></div><div class="chart-frame chart-frame--bar"><canvas id="fmsBarChart"></canvas></div></div>
+      <div class="card p-4 flex flex-col justify-between items-center"><h3 class="text-lg font-semibold mb-3 border-b w-full pb-2" style="border-color:var(--border)">Overall Task Completion Status</h3><div class="chart-frame chart-frame--doughnut"><canvas id="statusDoughnutChart"></canvas></div></div>
     </section>
     <section id="lead-delay-section" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="card p-4"><div class="flex items-center justify-between mb-3"><h3 class="text-lg font-semibold border-b pb-2 w-full" style="border-color:var(--border)" id="ld-bar-title">Lead Time vs Delay – by FMS</h3><button id="ld-drill-back" class="btn text-xs ml-2" style="display:none" onclick="clearLdDrill(); renderAll(false);">Back</button></div><div id="drill-breadcrumb-ld" class="flex flex-wrap gap-2 items-center text-xs mb-2"></div><div class="h-80"><canvas id="leadDelayBarChart"></canvas></div></div>
-      <div class="card p-4 flex flex-col justify-between items-center"><h3 class="text-lg font-semibold mb-3 border-b w-full pb-2" style="border-color:var(--border)">Collective Lead vs Delay</h3><div class="w-full max-w-sm"><canvas id="leadDelayPieChart"></canvas></div></div>
+      <div class="card p-4"><div class="flex items-center justify-between mb-3"><h3 class="text-lg font-semibold border-b pb-2 w-full" style="border-color:var(--border)" id="ld-bar-title">Lead Time vs Delay – by FMS</h3><button id="ld-drill-back" class="btn text-xs ml-2" style="display:none" onclick="clearLdDrill(); renderAll(false);">Back</button></div><div id="drill-breadcrumb-ld" class="flex flex-wrap gap-2 items-center text-xs mb-2"></div><div class="chart-frame chart-frame--bar"><canvas id="leadDelayBarChart"></canvas></div></div>
+      <div class="card p-4 flex flex-col justify-between items-center"><h3 class="text-lg font-semibold mb-3 border-b w-full pb-2" style="border-color:var(--border)">Collective Lead vs Delay</h3><div class="chart-frame chart-frame--doughnut"><canvas id="leadDelayPieChart"></canvas></div></div>
     </section>
 
     <section id="database-section" class="card p-4 space-y-4">
@@ -362,12 +373,19 @@ function toHours(val) {
 
       // NOTE: Replace this fetch with your actual Google Apps Script Web App URL if needed.
       fetch(`/api/data?email=${encodeURIComponent(userEmail)}`)
-        .then(res => { if (!res.ok) throw new Error("Network error"); return res.json(); })
-        .then(data => { if (data.error) throw new Error(data.error); handlePayload(data); })
+        .then(async res => {
+          const body = await res.text();
+          let data;
+          try { data = JSON.parse(body); } catch (_) { data = { error: body || 'Empty server response' }; }
+          if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+          return data;
+        })
+        .then(data => handlePayload(data))
         .catch(err => {
             console.error(err);
             btn.disabled=false; btn.textContent='Refresh Data';
-            document.getElementById('table-body').innerHTML=`<div class="record-list-message text-danger">Error fetching data.</div>`;
+            const table = document.getElementById('table-body');
+            if (table) table.innerHTML = `<div class="record-list-message text-danger">Could not load records: ${String(err.message || err).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}</div>`;
         });
     }
 
@@ -643,10 +661,11 @@ function toHours(val) {
     function renderAll(keepPage = false){
       if(!keepPage) CURRENT_PAGE = 1;
       const filtered = computeFilteredData();
-      renderKPIs(filtered);
-      renderCharts(filtered);
-      renderLeadDelayCharts(filtered);
+      // Keep the normal horizontal records table independent from chart drawing.
       renderTable(filtered);
+      renderKPIs(filtered);
+      try { renderCharts(filtered); } catch (error) { console.error('KPI chart rendering failed:', error); }
+      try { renderLeadDelayCharts(filtered); } catch (error) { console.error('Lead/delay chart rendering failed:', error); }
       updateBreadcrumbs();
     }
 
