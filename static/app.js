@@ -25,7 +25,8 @@ const ValueLabelsPlugin = {
           const h = Math.abs(base - y);
           const inside = h >= 16;
           const labelY = inside ? (y + (base > y ? 8 : -8)) : (Math.min(y, base) - 10);
-          ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 3; 
+          ctx.fillStyle = inside ? '#FFFFFF' : textCol;
+          ctx.strokeStyle = inside ? 'rgba(36,22,48,.78)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = inside ? 2.5 : 2; 
           ctx.strokeText(labelTxt, x, labelY); ctx.fillText(labelTxt, x, labelY);
         });
       });
@@ -48,12 +49,14 @@ const ValueLabelsPlugin = {
         if (pct >= SMALL_SLICE_PCT) {
           const r = m.innerRadius + (m.outerRadius - m.innerRadius) * .5;
           const lx = cx + Math.cos(mid) * r, ly = cy + Math.sin(mid) * r;
-          ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 3; 
+          ctx.fillStyle = '#FFFFFF';
+          ctx.strokeStyle = 'rgba(36,22,48,.78)'; ctx.lineWidth = 2.5; 
           ctx.strokeText(labelTxt, lx, ly); ctx.fillText(labelTxt, lx, ly);
         } else {
           const r1 = m.outerRadius * .92, r2 = m.outerRadius + 18;
           const x1 = cx + Math.cos(mid) * r1, y1 = cy + Math.sin(mid) * r1;
           const x2 = cx + Math.cos(mid) * r2, y2 = cy + Math.sin(mid) * r2;
+          ctx.fillStyle = textCol;
           ctx.strokeStyle = textCol; ctx.lineWidth = 1.5; ctx.beginPath(); 
           ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
           const tick = 10 * (Math.cos(mid) >= 0 ? 1 : -1); 
@@ -170,7 +173,7 @@ async function refreshData() {
   if(btn) { btn.disabled = true; btn.textContent = 'Downloading...'; }
   
   const tBody = document.getElementById('table-body');
-  if(tBody) tBody.innerHTML = '<tr><td colspan="12" class="p-4 text-center text-primary font-bold neon animate-pulse">Connecting to Warehouse Engine & Fetching Specific Range...</td></tr>';
+  if(tBody) { tBody.setAttribute('aria-busy', 'true'); tBody.innerHTML = '<div class="record-list-message">Loading records…</div>'; }
   
   const pageCtrl = document.getElementById('pagination-controls');
   if(pageCtrl) pageCtrl.style.display = 'none';
@@ -182,7 +185,19 @@ async function refreshData() {
     const fetchUrl = `/api/payload?email=${encodeURIComponent(userEmail.trim().toLowerCase())}&start_date=${sDate}&end_date=${eDate}`;
     
     const response = await fetch(fetchUrl);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    if (!response.ok) {
+      // Preserve the server's actual JSON error instead of hiding it behind a generic 503.
+      const rawBody = await response.text();
+      let detail = rawBody;
+      try {
+        const errorPayload = JSON.parse(rawBody);
+        detail = errorPayload.error || errorPayload.detail || errorPayload.message || rawBody;
+      } catch (_) {
+        // Keep plain-text response bodies as the diagnostic detail.
+      }
+      const compactDetail = String(detail || '').replace(/\s+/g, ' ').trim().slice(0, 700);
+      throw new Error(`HTTP ${response.status}${compactDetail ? `: ${compactDetail}` : ''}`);
+    }
     const payload = await response.json();
     
     if (payload.stats && statsDiv && payload.roleInfo && payload.roleInfo.isAdmin) {
@@ -455,61 +470,95 @@ function renderCharts() {
   }
 }
 
+function normalizeHeaderKey(value) {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function getTableCellValue(row, header, index) {
+  if (Array.isArray(row)) return row[index];
+  if (!row || typeof row !== 'object') return '';
+  if (Object.prototype.hasOwnProperty.call(row, header)) return row[header];
+  const wanted = normalizeHeaderKey(header);
+  const match = Object.keys(row).find(key => normalizeHeaderKey(key) === wanted);
+  if (match !== undefined) return row[match];
+  return Object.values(row)[index] ?? '';
+}
+
 function renderTable(data) {
-  const tbody = document.getElementById('table-body');
-  const theadRow = document.getElementById('table-header-row');
+  const container = document.getElementById('table-body');
   const paginationControls = document.getElementById('pagination-controls');
-  
-  if(!tbody || !theadRow) return;
+  if (!container) return;
 
-  if (theadRow.children.length === 0) {
-    theadRow.innerHTML = '';
-    const wrapFrom = Math.max(0, HEADERS.length - 6);
-    HEADERS.forEach((h, i) => {
-      const th = document.createElement('th'); th.textContent = h;
-      if (i >= wrapFrom) th.classList.add('wrap-th');
-      theadRow.appendChild(th);
-    });
-  }
-  
-  tbody.innerHTML = ''; 
-  const colCount = HEADERS.length || 12;
-  
-  if (!data || !data.length) { 
-      tbody.innerHTML = `<tr><td colspan="${colCount}" class="p-4 text-center muted">No records match.</td></tr>`; 
-      if(paginationControls) paginationControls.style.display = 'none'; 
-      return; 
+  container.className = 'record-table-wrap';
+  container.setAttribute('aria-busy', 'false');
+  container.replaceChildren();
+
+  const rows = Array.isArray(data) ? data : [];
+  let headers = Array.isArray(HEADERS) ? HEADERS.slice() : [];
+  if (!headers.length && rows.length && rows[0] && !Array.isArray(rows[0]) && typeof rows[0] === 'object') {
+    headers = Object.keys(rows[0]);
   }
 
-  if(paginationControls) paginationControls.style.display = 'flex';
-  const totalPages = Math.ceil(data.length / ROWS_PER_PAGE) || 1;
-  if (currentPage > totalPages) currentPage = totalPages;
-  if (currentPage < 1) currentPage = 1;
-
+  const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
+  currentPage = Math.max(1, Math.min(currentPage, totalPages));
   const startIdx = (currentPage - 1) * ROWS_PER_PAGE;
-  const endIdx = Math.min(startIdx + ROWS_PER_PAGE, data.length);
-  const fragment = document.createDocumentFragment();
-  for (let i = startIdx; i < endIdx; i++) {
-    const tr = document.createElement('tr');
-    data[i].forEach(cell => { const td = document.createElement('td'); td.textContent = cell; tr.appendChild(td); });
-    fragment.appendChild(tr);
+  const pageData = rows.slice(startIdx, startIdx + ROWS_PER_PAGE);
+
+  if (!pageData.length) {
+    const empty = document.createElement('div');
+    empty.className = 'record-list-message';
+    empty.textContent = rows.length ? 'No records match the current filters.' : 'No records found for this view or date range.';
+    container.appendChild(empty);
+    if (paginationControls) paginationControls.style.display = 'none';
+  } else {
+    if (paginationControls) paginationControls.style.display = 'flex';
+    const table = document.createElement('table');
+    table.className = 'data-record-table';
+    table.setAttribute('aria-label', 'Full database records');
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    headers.forEach(header => {
+      const th = document.createElement('th');
+      th.className = 'wrap-th';
+      th.scope = 'col';
+      th.textContent = String(header ?? '');
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+
+    const tbody = document.createElement('tbody');
+    const fragment = document.createDocumentFragment();
+    pageData.forEach(row => {
+      const tr = document.createElement('tr');
+      headers.forEach((header, index) => {
+        const td = document.createElement('td');
+        const value = getTableCellValue(row, header, index);
+        td.textContent = value == null || String(value).trim() === '' ? '—' : String(value);
+        if (normalizeHeaderKey(header) === 'taskstatus') {
+          const status = String(value ?? '').trim().toLowerCase();
+          if (status.includes('finish') || status.includes('complete') || status.includes('done-on-time')) td.classList.add('cell-status--finished');
+          else if (status.includes('defer') || status.includes('delay') || status.includes('overdue')) td.classList.add('cell-status--deferred');
+          else td.classList.add('cell-status--pending');
+        }
+        tr.appendChild(td);
+      });
+      fragment.appendChild(tr);
+    });
+    tbody.appendChild(fragment);
+    table.append(thead, tbody);
+    container.appendChild(table);
   }
-  tbody.appendChild(fragment);
 
   const pInput = document.getElementById('page-input');
-  if(pInput) { pInput.value = currentPage; pInput.max = totalPages; }
-  
+  if (pInput) { pInput.value = currentPage; pInput.max = totalPages; }
   const pInfo = document.getElementById('page-info');
-  if(pInfo) pInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-
+  if (pInfo) pInfo.textContent = `Page ${currentPage} of ${totalPages}`;
   const tRecords = document.getElementById('total-records');
-  if(tRecords) tRecords.textContent = data.length.toLocaleString();
-
+  if (tRecords) tRecords.textContent = rows.length.toLocaleString();
   const prevBtn = document.getElementById('prev-page');
-  if(prevBtn) prevBtn.disabled = currentPage === 1;
-  
+  if (prevBtn) prevBtn.disabled = currentPage === 1;
   const nextBtn = document.getElementById('next-page');
-  if(nextBtn) nextBtn.disabled = currentPage === totalPages;
+  if (nextBtn) nextBtn.disabled = currentPage === totalPages;
 }
 
 function updateBreadcrumb() {
@@ -528,15 +577,31 @@ function updateBreadcrumb() {
 }
 
 function clearDrill() { DRILL.status = null; DRILL.fms = null; DRILL.stage = null; updateBreadcrumb(); }
-function renderDashboardOnly() { renderKPIs(computeFilteredData()); renderCharts(); }
-function renderAll() { updateBreadcrumb(); const data = computeFilteredData(); renderKPIs(data); renderCharts(); renderTable(data); }
+function renderDashboardOnly() {
+  const data = computeFilteredData();
+  renderKPIs(data);
+  try { renderCharts(); } catch (error) { console.error('Chart rendering failed:', error); }
+}
+function renderAll() {
+  updateBreadcrumb();
+  const data = computeFilteredData();
+  // Render the records first: a chart error must never leave the table on a spinner.
+  renderTable(data);
+  renderKPIs(data);
+  try { renderCharts(); } catch (error) { console.error('Chart rendering failed:', error); }
+}
 
 function handleError(error) {
   console.error('Server error:', error);
   const btn = document.getElementById('refresh-button'); 
   if(btn) { btn.disabled = false; btn.textContent = 'Refresh Data'; }
   const tb = document.getElementById('table-body');
-  if(tb) tb.innerHTML = `<tr><td colspan="12" class="p-4 text-center text-danger">ERROR: ${error.message}</td></tr>`;
+  // Escape backend-supplied error text before inserting it into the page.
+  const message = String(error?.message || 'Unknown error');
+  const safeMessage = message.replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[ch]);
+  if(tb) { tb.setAttribute('aria-busy', 'false'); tb.innerHTML = `<div class="record-list-message text-danger">Could not load records: ${safeMessage}</div>`; }
   setKPI('ERR', 'ERR', 'ERR', 'ERR');
 }
 
