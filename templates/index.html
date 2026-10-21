@@ -1,0 +1,160 @@
+<!DOCTYPE html> 
+<html lang="en" data-theme="light">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task 360 | KPI 360 2</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css?v=offwhite-20261021">
+  <style>
+      /* Fix for Calendar Icon appearing dark on dark mode */
+      input[type="date"] { color-scheme: light; }
+  </style>
+</head>
+<body>
+
+  <header class="p-4 flex flex-col gap-3 md:flex-row md:justify-between md:items-center card rounded-none sticky top-0 z-10">
+    <div class="flex items-center gap-3">
+      <div class="h-3 w-3 rounded-full" style="background:var(--primary);box-shadow:var(--glow)"></div>
+      <h1 class="text-2xl font-extrabold text-primary neon">Task 360 · KPI 360</h1>
+    </div>
+    
+    <div class="flex flex-wrap items-center gap-3">
+      <nav class="flex items-center gap-2" aria-label="KPI dashboard">
+        <a href="/kpi1" data-kpi-route="/kpi1" class="btn text-sm">KPI 360 1 · Delay</a>
+        <a href="/" data-kpi-route="/" class="btn text-sm" aria-current="page" style="border-color:var(--primary)">KPI 360 2 · Completion</a>
+      </nav>
+      <div class="text-sm muted" id="user-email-display">Loading User...</div>
+      
+      <div class="flex items-center gap-1 border rounded p-1.5 px-2" style="border-color:var(--border); background:var(--bg);">
+        <input type="date" id="start-date" class="text-xs bg-transparent text-text outline-none cursor-pointer" title="Start Date">
+        <span class="muted text-xs px-1 font-semibold">TO</span>
+        <input type="date" id="end-date" class="text-xs bg-transparent text-text outline-none cursor-pointer" title="End Date">
+      </div>
+
+      <div id="loading-stats" class="text-xs font-bold px-3 py-1.5 rounded" style="background:var(--bg-card); border: 1px solid var(--border); display: none;">
+        Loaded: <span id="loaded-count" style="color:var(--primary)">0</span> / <span id="total-count" style="color:var(--success)">0</span>
+      </div>
+      
+      <button id="refresh-button" class="btn">Refresh Data</button>
+    </div>
+  </header>
+
+  <section class="p-4" id="filter-section-card">
+    <div class="card p-3 flex flex-wrap gap-2 items-center justify-between">
+      <div class="flex gap-2 items-center">
+        <span class="text-xs muted">View:</span>
+        <button id="tab-admin"  class="mode-tab">Admin</button>
+        <button id="tab-myteam" class="mode-tab">My Team</button>
+        <button id="tab-me"     class="mode-tab">Me</button>
+        <button id="tab-faulty" class="mode-tab text-danger" style="display:none; border-color:var(--danger)">Faulty Data ⚠️</button>
+      </div>
+      
+      <div class="flex items-center gap-3">
+        <div id="drill-breadcrumb" class="flex flex-wrap gap-2 items-center text-xs"></div>
+        <button id="reset-filters-btn" class="btn btn-clear p-1.5 text-danger border-danger hover:bg-danger/10" title="Reset All Filters" style="border-radius: 8px;">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+        </button>
+      </div>
+    </div>
+    
+    <div class="mt-3 card p-3" id="multi-select-container">
+      <div id="filters-below-views" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3"></div>
+    </div>
+  </section>
+
+  <main class="p-6 space-y-6">
+    <div id="main-dashboard-content" class="space-y-6">
+      <section id="kpi-section" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="card p-5"><div class="text-sm font-semibold text-danger mb-2 flex items-center">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Deferred Tasks</div>
+          <div id="kpi-delayed" class="text-4xl font-extrabold neon">0</div></div>
+        <div class="card p-5"><div class="text-sm font-semibold text-success mb-2 flex items-center">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Finished</div>
+          <div id="kpi-ontime" class="text-4xl font-extrabold">0</div></div>
+        <div class="card p-5"><div class="text-sm font-semibold text-primary mb-2 flex items-center neon">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2-11H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V7a2 2 0 00-2-2h-2m-4 12V3"/></svg>Total Records</div>
+          <div id="kpi-total" class="text-4xl font-extrabold">0</div></div>
+        <div class="card p-5"><div class="text-sm font-semibold text-warning mb-2 flex items-center">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-4 11l-3-3m0 0l-3 3m3-3v8m4-11a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>Avg. Delay (Hrs)</div>
+          <div id="kpi-avg-delay" class="text-4xl font-extrabold">0.00</div></div>
+      </section>
+
+      <section id="chart-section" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-semibold border-b pb-2" style="border-color:var(--border)" id="bar-title">FMS – Finished vs Deferred</h3>
+            <button id="drill-back" class="btn text-xs" style="display:none">Back</button>
+          </div>
+          <div class="h-80"><canvas id="fmsBarChart"></canvas></div>
+        </div>
+        <div class="card p-4 flex flex-col justify-between items-center">
+          <h3 class="text-lg font-semibold mb-3 border-b w-full pb-2" style="border-color:var(--border)">Overall Task Completion Status</h3>
+          <div class="w-full max-w-sm"><canvas id="statusDoughnutChart"></canvas></div>
+        </div>
+      </section>
+
+      <section id="database-section" class="card p-4 space-y-4">
+        <h2 class="text-xl font-semibold border-b pb-2" style="border-color:var(--border)">Full Database View (All Records)</h2>
+        <div class="scroll-area">
+          <table id="data-table" class="min-w-full">
+            <thead><tr id="table-header-row"></tr></thead>
+            <tbody id="table-body"><tr><td colspan="12" class="p-4 text-center muted">Loading data...</td></tr></tbody>
+          </table>
+        </div>
+        
+        <div id="pagination-controls" class="flex flex-col md:flex-row justify-between items-center mt-4 border-t pt-3 gap-4" style="border-color:var(--border); display:none;">
+            <div class="flex items-center gap-2 text-sm font-semibold text-primary">
+                Jump to Page: 
+                <input type="number" id="page-input" min="1" class="text-center rounded outline-none transition-colors" style="width: 70px; padding: 4px; background: var(--bg); color: var(--text); border: 1px solid var(--border);"> 
+            </div>
+            <div class="flex items-center gap-3">
+                <button id="prev-page" class="btn btn-clear">Previous</button>
+                <div class="text-sm font-semibold text-primary">
+                    <span id="page-info">Page 1 of 1</span>
+                    <span class="muted font-normal text-xs ml-1">(<span id="total-records">0</span> records)</span>
+                </div>
+                <button id="next-page" class="btn btn-clear">Next</button>
+            </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="faulty-dashboard-content" style="display:none;">
+      <section class="card p-4 space-y-4">
+        <h2 class="text-xl font-semibold border-b pb-2 text-danger" style="border-color:var(--border)">
+          ⚠️ Skipped / Faulty Records Log
+        </h2>
+        <p class="text-sm muted mb-3">These records were found in the database but were skipped due to formatting errors or being exact overlapping duplicates. Please correct them in the source Google Sheets.</p>
+        <div class="scroll-area">
+          <table class="min-w-full">
+            <thead>
+              <tr>
+                <th class="text-left" style="width: 20%;">Sheet Range</th>
+                <th class="text-left" style="width: 30%;">Error Reason</th>
+                <th class="text-left" style="width: 50%;">Raw Snippet (Preview)</th>
+              </tr>
+            </thead>
+            <tbody id="faulty-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+  <script>
+    // Keep the active employee identity when switching between the two dashboards.
+    document.querySelectorAll('[data-kpi-route]').forEach((link) => {
+      link.addEventListener('click', () => {
+        const current = new URLSearchParams(window.location.search);
+        const email = current.get('useremail') || current.get('email') || '';
+        const route = link.getAttribute('data-kpi-route');
+        const query = new URLSearchParams();
+        if (email) query.set(route === '/kpi1' ? 'email' : 'useremail', email);
+        link.href = route + (query.toString() ? `?${query.toString()}` : '');
+      });
+    });
+  </script>
+</body>
+</html>

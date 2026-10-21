@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: task360-kpi-combined
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: API_1_URL
+        sync: false
+      - key: API_2_URL
+        sync: false
+      - key: API_AUTH_TOKEN
+        sync: false
+      - key: APP_NAME
+        value: Task 360
+      - key: ENVIRONMENT
+        value: production
+      - key: REQUEST_TIMEOUT
+        value: "15"
+      - key: KPI_API_BASE
+        value: API_1
+      - key: KPI_SQL_TABLE
+        sync: false
+      - key: VM_EMPLOYEE_TABLE
+        value: VM_EmployeeMaster
+      - key: KPI_SQL_CACHE_SECONDS
+        value: "30"
+      - key: KPI_SQL_MAX_ROWS
+        value: "100000"
+      - key: VM_EMPLOYEE_CACHE_SECONDS
+        value: "300"
+      - key: EMPLOYEE_ADMIN_ROLE_IDS
+        value: "1"
+      - key: EMPLOYEE_MANAGER_ROLE_IDS
+        value: ""

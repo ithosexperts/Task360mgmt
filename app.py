@@ -1,0 +1,136 @@
+import os
+import traceback
+from typing import Optional
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+load_dotenv()
+
+from services.api_service import api_configuration
+from services.sql_service import load_records, sql_status
+from services.employee_service import employee_sql_status
+from services.unified_service import get_kpi1_payload, get_kpi2_payload, query_records
+
+app = FastAPI(title="Task 360 — KPI 360 1 & 2", version="1.0.0")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+
+@app.head("/")
+async def health_head():
+    return HTMLResponse(status_code=200, content="")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def kpi2_dashboard(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/kpi2", response_class=HTMLResponse)
+async def kpi2_alias():
+    return RedirectResponse(url="/", status_code=307)
+
+
+@app.get("/kpi1", response_class=HTMLResponse)
+async def kpi1_dashboard(request: Request):
+    return templates.TemplateResponse("kpi1.html", {"request": request})
+
+
+@app.get("/api/health")
+async def api_health():
+    return {
+        "ok": True,
+        "application": "Task 360 KPI 360 1 & 2",
+        "taskTableConfigured": bool(os.getenv("KPI_SQL_TABLE")),
+        "employeeTable": os.getenv("VM_EMPLOYEE_TABLE", "VM_EmployeeMaster"),
+        "api": api_configuration(),
+    }
+
+
+@app.get("/api/db-test")
+def api_db_test():
+    try:
+        task_table = sql_status()
+        employee_table = employee_sql_status()
+        return {
+            "ok": True,
+            "accessMethod": "HTTP SQL API (no direct SQL connection)",
+            "taskTable": task_table,
+            "employeeTable": employee_table,
+        }
+    except Exception as exc:
+        return JSONResponse(status_code=503, content={"ok": False, "error": str(exc)})
+
+
+@app.get("/api/data")
+def get_kpi1_data(email: str = Query("systems2@hosexperts.com"), force: bool = Query(False)):
+    try:
+        return get_kpi1_payload(email.strip(), force=force)
+    except Exception as exc:
+        traceback.print_exc()
+        return JSONResponse(status_code=503, content={"error": str(exc), "headers": [], "partitions": {"admin": [], "myTeam": [], "me": []}})
+
+
+@app.get("/api/payload")
+def get_kpi2_data(
+    email: str = Query("systems2@hosexperts.com"),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    force: bool = Query(False),
+):
+    try:
+        return get_kpi2_payload(email.strip(), start_date, end_date, force=force)
+    except Exception as exc:
+        traceback.print_exc()
+        return JSONResponse(status_code=503, content={"error": str(exc), "headers": [], "partitions": {"admin": [], "myTeam": [], "me": []}, "faultyData": []})
+
+
+@app.get("/api/query")
+def query_kpi_data(
+    year: Optional[str] = Query(None),
+    month: Optional[str] = Query(None),
+    doer: Optional[str] = Query(None),
+    fms: Optional[str] = Query(None),
+    stage: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    email: str = Query(..., description="Employee email used by the existing role lookup"),
+):
+    try:
+        rows = query_records(year=year, month=month, doer=doer, fms=fms, stage=stage, status=status, email=email.strip())
+        return {"total": len(rows), "data": rows}
+    except Exception as exc:
+        traceback.print_exc()
+        return JSONResponse(status_code=503, content={"error": str(exc), "total": 0, "data": []})
+
+
+@app.get("/api/debug")
+def debug_system():
+    try:
+        return {
+            "application": app.title,
+            "accessMethod": "HTTP SQL API (no direct SQL connection)",
+            "api": api_configuration(),
+            "taskTable": sql_status(),
+            "employeeTable": employee_sql_status(),
+        }
+    except Exception as exc:
+        return JSONResponse(status_code=503, content={
+            "application": app.title,
+            "accessMethod": "HTTP SQL API (no direct SQL connection)",
+            "api": {"configured": False},
+            "error": str(exc),
+        })
+
+
+@app.post("/api/cache/clear")
+def clear_cache():
+    try:
+        # Force a refresh through the shared service cache.
+        load_records(force=True)
+        return {"ok": True, "message": "Shared SQL API data cache refreshed."}
+    except Exception as exc:
+        return JSONResponse(status_code=503, content={"ok": False, "error": str(exc)})
