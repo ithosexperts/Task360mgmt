@@ -524,6 +524,12 @@ function renderTable(data) {
       th.textContent = String(header ?? '');
       headRow.appendChild(th);
     });
+    // A dedicated Forms action column is separate from the Task Status column.
+    const formsHeader = document.createElement('th');
+    formsHeader.className = 'wrap-th forms-action-column';
+    formsHeader.scope = 'col';
+    formsHeader.textContent = 'Forms';
+    headRow.appendChild(formsHeader);
     thead.appendChild(headRow);
 
     const tbody = document.createElement('tbody');
@@ -577,6 +583,35 @@ function renderTable(data) {
         }
         tr.appendChild(td);
       });
+
+      // Add a Forms > Show button for every row with the form lookup keys.
+      // The shared stage_form.js click handler opens the resolved URL in a new tab.
+      const formsTd = document.createElement('td');
+      formsTd.className = 'forms-action-column';
+      const formRecordId = recordCol >= 0 ? getTableCellValue(row, headers[recordCol], recordCol) : '';
+      const formAppId = appCol >= 0 ? getTableCellValue(row, headers[appCol], appCol) : '';
+      const formStageNo = stageCol >= 0 ? getTableCellValue(row, headers[stageCol], stageCol) : '';
+      const formKeysAvailable = [formRecordId, formAppId, formStageNo]
+        .every(item => item != null && String(item).trim() !== '');
+
+      const formsButton = document.createElement('button');
+      formsButton.type = 'button';
+      formsButton.className = 'stage-form-show-button';
+      formsButton.textContent = 'Show';
+      if (formKeysAvailable) {
+        formsButton.dataset.stageFormLaunch = 'true';
+        formsButton.dataset.recordId = String(formRecordId).trim();
+        formsButton.dataset.appId = String(formAppId).trim();
+        formsButton.dataset.stageNo = String(formStageNo).trim();
+        formsButton.title = `Open form in a new tab · Record ${formRecordId} · ${formAppId} · ${formStageNo}`;
+        formsButton.setAttribute('aria-label', `Show form for record ${formRecordId}`);
+      } else {
+        formsButton.disabled = true;
+        formsButton.title = 'Cannot open form: Record #, App ID, or Stage No is missing.';
+        formsButton.setAttribute('aria-label', 'Form unavailable because row details are missing');
+      }
+      formsTd.appendChild(formsButton);
+      tr.appendChild(formsTd);
       fragment.appendChild(tr);
     });
     tbody.appendChild(fragment);
