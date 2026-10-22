@@ -176,6 +176,16 @@ input[type="date"] { color-scheme: light; }
   .chart-frame, .chart-frame--doughnut { height: 280px; min-height: 240px; }
 }
 
+
+.stage-form-status-link {
+  border: 0; padding: 0; margin: 0; background: transparent;
+  color: var(--brand-indigo); font: inherit; font-weight: 750;
+  text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 2px; cursor: pointer;
+}
+.stage-form-status-link:hover { color: var(--brand-purple); }
+.stage-form-status-link:focus-visible { outline: 2px solid var(--brand-teal); outline-offset: 3px; border-radius: 3px; }
+.stage-form-status-link:disabled { opacity: .65; cursor: progress; }
 </style>
 </head>
 <body>
@@ -622,17 +632,53 @@ function toHours(val) {
 
         const tbody = document.createElement('tbody');
         const fragment = document.createDocumentFragment();
+        const headerIndex = new Map();
+        HEADERS.forEach((header, index) => {
+          const key = String(header || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (!headerIndex.has(key)) headerIndex.set(key, index);
+        });
+        const findHeader = (...names) => {
+          for (const name of names) {
+            const index = headerIndex.get(String(name || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+            if (index != null) return index;
+          }
+          return -1;
+        };
+        const getCell = (row, index) => index < 0 ? '' : (Array.isArray(row) ? row[index] : (row && typeof row === 'object' ? row[HEADERS[index]] : ''));
+        const recordCol = findHeader('Record #', 'Record ID', 'RowID', 'Task ID');
+        const appCol = findHeader('App ID', 'AppID', 'App_ID', 'Application ID');
+        const stageCol = findHeader('Stage No', 'StageNo', 'Stage_No', 'Stage Number');
         pageData.forEach(row => {
           const tr = document.createElement('tr');
           HEADERS.forEach((header, index) => {
             const td = document.createElement('td');
-            const value = Array.isArray(row) ? row[index] : (row && typeof row === 'object' ? row[header] : '');
+            const value = getCell(row, index);
             td.textContent = value == null || String(value).trim() === '' ? '—' : String(value);
             if (String(header).trim().toLowerCase() === 'task status') {
-              const status = String(value ?? '').trim().toLowerCase();
-              if (status.includes('finish') || status.includes('complete') || status.includes('done-on-time')) td.classList.add('cell-status--finished');
-              else if (status.includes('defer') || status.includes('delay') || status.includes('overdue')) td.classList.add('cell-status--deferred');
+              const status = String(value ?? '').trim();
+              const statusKey = status.toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (statusKey.includes('finish') || statusKey.includes('complete') || statusKey.includes('doneontime')) td.classList.add('cell-status--finished');
+              else if (statusKey.includes('defer') || statusKey.includes('delay') || statusKey.includes('overdue')) td.classList.add('cell-status--deferred');
               else td.classList.add('cell-status--pending');
+
+              const canLaunch = statusKey.startsWith('planned') || statusKey.startsWith('pending') || statusKey.startsWith('awaited');
+              const recordId = getCell(row, recordCol);
+              const appId = getCell(row, appCol);
+              const stageNo = getCell(row, stageCol);
+              if (canLaunch && [recordId, appId, stageNo].every(item => item != null && String(item).trim() !== '')) {
+                const launch = document.createElement('button');
+                launch.type = 'button';
+                launch.className = 'stage-form-status-link';
+                launch.dataset.stageFormLaunch = 'true';
+                launch.dataset.recordId = String(recordId).trim();
+                launch.dataset.appId = String(appId).trim();
+                launch.dataset.stageNo = String(stageNo).trim();
+                launch.textContent = status;
+                launch.title = `Open stage form · Record ${recordId} · ${appId} · ${stageNo}`;
+                td.replaceChildren(launch);
+              } else if (canLaunch) {
+                td.title = 'Stage form cannot open because Record #, App ID, or Stage No is missing.';
+              }
             }
             tr.appendChild(td);
           });
@@ -688,5 +734,6 @@ function toHours(val) {
       });
     });
   </script>
+  <script src="/static/stage_form.js?v=stage-form-20261022"></script>
 </body>
 </html>
