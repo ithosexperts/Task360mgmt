@@ -238,3 +238,14 @@ input[type="date"] { color-scheme: light; }
   #lead-delay-section > .card { min-height: 340px; }
   .chart-frame, .chart-frame--doughnut { height: 280px; min-height: 240px; }
 }
+
+
+/* Planned/Pending statuses open the configured stage form. */
+.stage-form-status-link {
+  border: 0; padding: 0; margin: 0; background: transparent;
+  color: var(--brand-indigo); font: inherit; font-weight: 750;
+  text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; cursor: pointer;
+}
+.stage-form-status-link:hover { color: var(--brand-purple); }
+.stage-form-status-link:focus-visible { outline: 2px solid var(--brand-teal); outline-offset: 3px; border-radius: 3px; }
+.stage-form-status-link:disabled { opacity: .65; cursor: progress; }
