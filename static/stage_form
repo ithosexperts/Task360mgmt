@@ -1,4 +1,4 @@
-/* Opens a row's configured FMS stage form when its Planned/Pending status is clicked. */
+/* Opens a row's configured FMS stage form when its Show button or Planned/Pending status is clicked. */
 (() => {
   if (window.__task360StageFormHandlerInstalled) return;
   window.__task360StageFormHandlerInstalled = true;
@@ -15,7 +15,7 @@
       return;
     }
 
-    // Open the tab synchronously within the click gesture so browsers do not block the later navigation.
+    // Open the tab synchronously inside the click gesture to reduce popup blocking.
     let popup = window.open('about:blank', '_blank');
     if (popup) {
       try { popup.opener = null; } catch (_) { /* no-op */ }
