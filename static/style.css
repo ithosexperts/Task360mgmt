@@ -249,3 +249,34 @@ input[type="date"] { color-scheme: light; }
 .stage-form-status-link:hover { color: var(--brand-purple); }
 .stage-form-status-link:focus-visible { outline: 2px solid var(--brand-teal); outline-offset: 3px; border-radius: 3px; }
 .stage-form-status-link:disabled { opacity: .65; cursor: progress; }
+
+
+/* Dedicated Forms column action button. */
+.stage-form-show-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 54px;
+  padding: 5px 12px;
+  border: 1px solid var(--brand-indigo);
+  border-radius: 6px;
+  background: var(--brand-indigo);
+  color: #FFFFFF;
+  font: inherit;
+  font-weight: 750;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.stage-form-show-button:hover:not(:disabled) {
+  background: var(--brand-purple);
+  border-color: var(--brand-purple);
+}
+.stage-form-show-button:focus-visible {
+  outline: 2px solid var(--brand-teal);
+  outline-offset: 2px;
+}
+.stage-form-show-button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.forms-action-column { min-width: 82px; text-align: center; }
