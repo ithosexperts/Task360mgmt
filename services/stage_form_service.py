@@ -58,8 +58,25 @@ def _config_rows(force: bool = False) -> list[dict[str, Any]]:
 
 
 def _default_template() -> str:
-    return (os.getenv("FMS_STAGE_FORM_LINK_TEMPLATE") or
-            "http://127.0.0.1:8001/forms/stage/{TASK_ID}/{STAGE_NO}?app_id={APP_ID}").strip()
+    """Build the fallback URL without silently sending production users to localhost."""
+    template = (os.getenv("FMS_STAGE_FORM_LINK_TEMPLATE") or "").strip()
+    if template:
+        return template
+
+    origin = (os.getenv("FMS_STAGE_FORM_ORIGIN") or "").strip().rstrip("/")
+    if origin:
+        return f"{origin}/forms/stage/{{TASK_ID}}/{{STAGE_NO}}?app_id={{APP_ID}}"
+
+    environment = (os.getenv("ENVIRONMENT") or "").strip().casefold()
+    if environment in {"production", "prod"}:
+        raise RuntimeError(
+            "Stage form URL is not configured. Add a public StageFormLink in FMS_Config, "
+            "or set FMS_STAGE_FORM_ORIGIN / FMS_STAGE_FORM_LINK_TEMPLATE in Render to the "
+            "public FMS Portal URL. Localhost URLs cannot be opened from users' browsers."
+        )
+
+    # Local-development fallback only. Production must use a public FMS Portal URL.
+    return "http://127.0.0.1:8001/forms/stage/{TASK_ID}/{STAGE_NO}?app_id={APP_ID}"
 
 
 def build_stage_form_url(template: str, record_id: str, app_id: str, stage_no: str) -> str:
@@ -116,6 +133,14 @@ def build_stage_form_url(template: str, record_id: str, app_id: str, stage_no: s
     final_url = urlunsplit((parts.scheme, parts.netloc, path, query, parts.fragment))
     if parts.scheme.casefold() not in {"http", "https"}:
         raise ValueError("StageFormLink must use HTTP or HTTPS.")
+
+    environment = (os.getenv("ENVIRONMENT") or "").strip().casefold()
+    hostname = (urlsplit(final_url).hostname or "").casefold()
+    if environment in {"production", "prod"} and hostname in {"localhost", "127.0.0.1", "0.0.0.0"}:
+        raise RuntimeError(
+            "The resolved StageFormLink points to localhost. Configure StageFormLink in FMS_Config "
+            "or set FMS_STAGE_FORM_ORIGIN / FMS_STAGE_FORM_LINK_TEMPLATE to the public FMS Portal URL."
+        )
     return final_url
 
 
