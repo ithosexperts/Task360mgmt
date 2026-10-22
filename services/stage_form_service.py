@@ -79,6 +79,67 @@ def _default_template() -> str:
     return "http://127.0.0.1:8001/forms/stage/{TASK_ID}/{STAGE_NO}?app_id={APP_ID}"
 
 
+
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+
+
+def _is_local_host(hostname: str | None) -> bool:
+    host = str(hostname or "").strip().casefold().rstrip(".")
+    return host in _LOCAL_HOSTS or host.endswith(".localhost")
+
+
+def _replace_local_link_with_public(link: str) -> str:
+    """Replace a local FMS link with the configured public FMS origin/template.
+
+    FMS_Config may contain a development URL such as http://127.0.0.1:8001/...
+    That address refers to the end user's own computer in production. Preserve its
+    route/query while changing only the origin, unless an explicit public template
+    has been configured in Render.
+    """
+    parts = urlsplit(str(link or "").strip())
+    if not parts.scheme or not parts.netloc or not _is_local_host(parts.hostname):
+        return link
+
+    public_template = (os.getenv("FMS_STAGE_FORM_LINK_TEMPLATE") or "").strip()
+    if public_template:
+        template_parts = urlsplit(public_template)
+        if (
+            template_parts.scheme.casefold() not in {"http", "https"}
+            or not template_parts.netloc
+            or _is_local_host(template_parts.hostname)
+        ):
+            raise RuntimeError(
+                "FMS_STAGE_FORM_LINK_TEMPLATE must be a public HTTP(S) FMS form URL; "
+                "it cannot point to localhost."
+            )
+        return public_template
+
+    public_origin = (os.getenv("FMS_STAGE_FORM_ORIGIN") or "").strip().rstrip("/")
+    if not public_origin:
+        raise RuntimeError(
+            "FMS_Config StageFormLink points to localhost. In Render, set "
+            "FMS_STAGE_FORM_ORIGIN to the public FMS Portal origin, or set "
+            "FMS_STAGE_FORM_LINK_TEMPLATE to the correct public form URL template. "
+            "Use the actual deployed FMS Portal URL, not localhost."
+        )
+
+    origin_parts = urlsplit(public_origin)
+    if (
+        origin_parts.scheme.casefold() not in {"http", "https"}
+        or not origin_parts.netloc
+        or _is_local_host(origin_parts.hostname)
+    ):
+        raise RuntimeError(
+            "FMS_STAGE_FORM_ORIGIN must be the public HTTP(S) FMS Portal origin, "
+            "not localhost or a relative URL."
+        )
+
+    old_path = parts.path or "/forms/stage/{TASK_ID}/{STAGE_NO}"
+    base_path = origin_parts.path.rstrip("/")
+    new_path = f"{base_path}/{old_path.lstrip('/')}" if base_path else old_path
+    return urlunsplit((origin_parts.scheme, origin_parts.netloc, new_path, parts.query, parts.fragment))
+
+
 def build_stage_form_url(template: str, record_id: str, app_id: str, stage_no: str) -> str:
     """Fill configured placeholders and make stage/app query values match the task row."""
     template = str(template or "").strip() or _default_template()
@@ -180,8 +241,12 @@ def resolve_stage_form_link(record_id: str, app_id: str, stage_no: str) -> dict[
     if selected is None:
         raise RuntimeError(f"No matching FMS_Config row found for App ID {app_id} and Stage No {stage_no}.")
 
-    link = _pick(selected, "StageFormLink", "Stage_Form_Link", "Stage Form Link", "StageFormURL", "StageFormUrl", "Stage_Form_URL", "FormLink")
-    link = str(link or _default_template()).strip()
+    link_value = _pick(selected, "StageFormLink", "Stage_Form_Link", "Stage Form Link", "StageFormURL", "StageFormUrl", "Stage_Form_URL", "FormLink")
+    if link_value is None or not str(link_value).strip():
+        link = _default_template()
+    else:
+        link = str(link_value).strip()
+        link = _replace_local_link_with_public(link)
     url = build_stage_form_url(link, record_id, app_id, stage_no)
     return {
         "ok": True,
