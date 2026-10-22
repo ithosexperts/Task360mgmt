@@ -58,7 +58,7 @@ def _config_rows(force: bool = False) -> list[dict[str, Any]]:
 
 
 def _default_template() -> str:
-    """Build the fallback URL without silently sending production users to localhost."""
+    """Build a fallback URL without silently sending production users to localhost."""
     template = (os.getenv("FMS_STAGE_FORM_LINK_TEMPLATE") or "").strip()
     if template:
         return template
