@@ -528,6 +528,21 @@ function renderTable(data) {
 
     const tbody = document.createElement('tbody');
     const fragment = document.createDocumentFragment();
+    const headerIndex = new Map();
+    headers.forEach((header, index) => {
+      const key = normalizeHeaderKey(header);
+      if (!headerIndex.has(key)) headerIndex.set(key, index);
+    });
+    const findHeader = (...names) => {
+      for (const name of names) {
+        const index = headerIndex.get(normalizeHeaderKey(name));
+        if (index != null) return index;
+      }
+      return -1;
+    };
+    const recordCol = findHeader('Record #', 'Record ID', 'RowID', 'Task ID');
+    const appCol = findHeader('App ID', 'AppID', 'App_ID', 'Application ID');
+    const stageCol = findHeader('Stage No', 'StageNo', 'Stage_No', 'Stage Number');
     pageData.forEach(row => {
       const tr = document.createElement('tr');
       headers.forEach((header, index) => {
@@ -535,10 +550,30 @@ function renderTable(data) {
         const value = getTableCellValue(row, header, index);
         td.textContent = value == null || String(value).trim() === '' ? '—' : String(value);
         if (normalizeHeaderKey(header) === 'taskstatus') {
-          const status = String(value ?? '').trim().toLowerCase();
-          if (status.includes('finish') || status.includes('complete') || status.includes('done-on-time')) td.classList.add('cell-status--finished');
-          else if (status.includes('defer') || status.includes('delay') || status.includes('overdue')) td.classList.add('cell-status--deferred');
+          const status = String(value ?? '').trim();
+          const statusKey = normalizeHeaderKey(status);
+          if (statusKey.includes('finish') || statusKey.includes('complete') || statusKey.includes('doneontime')) td.classList.add('cell-status--finished');
+          else if (statusKey.includes('defer') || statusKey.includes('delay') || statusKey.includes('overdue')) td.classList.add('cell-status--deferred');
           else td.classList.add('cell-status--pending');
+
+          const canLaunch = statusKey.startsWith('planned') || statusKey.startsWith('pending') || statusKey.startsWith('awaited');
+          const recordId = recordCol >= 0 ? getTableCellValue(row, headers[recordCol], recordCol) : '';
+          const appId = appCol >= 0 ? getTableCellValue(row, headers[appCol], appCol) : '';
+          const stageNo = stageCol >= 0 ? getTableCellValue(row, headers[stageCol], stageCol) : '';
+          if (canLaunch && [recordId, appId, stageNo].every(item => item != null && String(item).trim() !== '')) {
+            const launch = document.createElement('button');
+            launch.type = 'button';
+            launch.className = 'stage-form-status-link';
+            launch.dataset.stageFormLaunch = 'true';
+            launch.dataset.recordId = String(recordId).trim();
+            launch.dataset.appId = String(appId).trim();
+            launch.dataset.stageNo = String(stageNo).trim();
+            launch.textContent = status;
+            launch.title = `Open stage form · Record ${recordId} · ${appId} · ${stageNo}`;
+            td.replaceChildren(launch);
+          } else if (canLaunch) {
+            td.title = 'Stage form cannot open because Record #, App ID, or Stage No is missing.';
+          }
         }
         tr.appendChild(td);
       });
