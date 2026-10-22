@@ -1,12 +1,10 @@
-/* Opens the configured FMS stage form from the Forms > Show button or a Planned/Awaited status. */
+/* Opens a row's configured FMS stage form when its Planned/Pending status is clicked. */
 (() => {
   if (window.__task360StageFormHandlerInstalled) return;
   window.__task360StageFormHandlerInstalled = true;
 
   document.addEventListener('click', async (event) => {
-    const button = event.target && event.target.closest
-      ? event.target.closest('[data-stage-form-launch="true"]')
-      : null;
+    const button = event.target && event.target.closest ? event.target.closest('[data-stage-form-launch="true"]') : null;
     if (!button || button.disabled) return;
 
     const recordId = (button.dataset.recordId || '').trim();
@@ -17,24 +15,17 @@
       return;
     }
 
-    // Open the new tab synchronously in the click gesture, before awaiting the API.
-    const popup = window.open('about:blank', '_blank');
-    if (!popup) {
-      window.alert('Your browser blocked the new tab. Allow pop-ups for Task 360, then click Show again.');
-      return;
+    // Open the tab synchronously within the click gesture so browsers do not block the later navigation.
+    let popup = window.open('about:blank', '_blank');
+    if (popup) {
+      try { popup.opener = null; } catch (_) { /* no-op */ }
     }
-    try { popup.opener = null; } catch (_) { /* no-op */ }
-
     const oldText = button.textContent;
     button.disabled = true;
     button.textContent = 'Opening…';
 
     try {
-      const params = new URLSearchParams({
-        record_id: recordId,
-        app_id: appId,
-        stage_no: stageNo
-      });
+      const params = new URLSearchParams({ record_id: recordId, app_id: appId, stage_no: stageNo });
       const response = await fetch(`/api/stage-link?${params.toString()}`, {
         method: 'GET',
         headers: { Accept: 'application/json' },
@@ -42,21 +33,17 @@
       });
       const raw = await response.text();
       let payload;
-      try { payload = JSON.parse(raw); }
-      catch (_) { payload = { error: raw || 'Empty response from Task 360.' }; }
-
+      try { payload = JSON.parse(raw); } catch (_) { payload = { error: raw || 'Empty response from Task 360.' }; }
       if (!response.ok || !payload || !payload.url) {
-        throw new Error(
-          payload && (payload.error || payload.detail) ||
-          `Stage form lookup failed (HTTP ${response.status}).`
-        );
+        throw new Error(payload && (payload.error || payload.detail) || `Stage form lookup failed (HTTP ${response.status}).`);
       }
 
       const destination = new URL(payload.url, window.location.href).href;
-      if (popup.closed) {
-        throw new Error('The new form tab was closed before the form URL was resolved. Click Show again.');
+      if (popup && !popup.closed) {
+        popup.location.replace(destination);
+      } else {
+        window.location.assign(destination);
       }
-      popup.location.replace(destination);
     } catch (error) {
       if (popup && !popup.closed) popup.close();
       window.alert(`Could not open the stage form. ${String(error && error.message || error)}`);
