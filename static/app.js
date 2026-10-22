@@ -377,10 +377,51 @@ function toggleTopPopover(key, triggerBtn, options) {
   
   foot.appendChild(btnCancel); foot.appendChild(btnApply); pop.appendChild(foot); document.body.appendChild(pop);
 
-  const rect = triggerBtn.getBoundingClientRect();
-  const top = rect.bottom + window.scrollY + 6;
-  const left = Math.min(window.scrollX + rect.left, window.scrollX + window.innerWidth - 320);
-  pop.style.top = `${top}px`; pop.style.left = `${left}px`;
+  // The popover is position:fixed, so always use viewport coordinates from
+  // getBoundingClientRect(). Do NOT add window.scrollY/scrollX; that caused
+  // the panel to drift above/below its filter when the page was scrolled.
+  function positionTopPopover() {
+    if (!pop.isConnected || !triggerBtn.isConnected) return;
+    const rect = triggerBtn.getBoundingClientRect();
+    const margin = 12;
+    const gap = 8;
+    // Task 360 applies html { zoom: 67% } on desktop. DOMRects are viewport
+    // pixels, while fixed CSS coordinates live inside that zoomed coordinate
+    // space, so convert back to CSS pixels to keep the popover flush with its trigger.
+    const rootZoomValue = Number.parseFloat(getComputedStyle(document.documentElement).zoom);
+    const rootZoom = Number.isFinite(rootZoomValue) && rootZoomValue > 0 ? rootZoomValue : 1;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const popWidth = Math.max(0, Math.min(300, viewportWidth - margin * 2));
+    pop.style.width = `${popWidth / rootZoom}px`;
+
+    // Align the left edge with the filter. If there isn't room, align right
+    // edges instead, and clamp to the viewport so the panel is never cut off.
+    let left = rect.left;
+    if (left + popWidth > viewportWidth - margin) left = rect.right - popWidth;
+    left = Math.max(margin, Math.min(left, viewportWidth - popWidth - margin));
+
+    const belowTop = rect.bottom + gap;
+    const belowSpace = Math.max(0, viewportHeight - belowTop - margin);
+    const aboveSpace = Math.max(0, rect.top - gap - margin);
+    const measuredHeight = Math.min(pop.scrollHeight || 300, 360);
+    let top = belowTop;
+    let available = belowSpace;
+
+    // Prefer directly below the selected filter. Flip above only when the
+    // viewport cannot fit a usable menu below and there is clearly more room above.
+    if (belowSpace < Math.min(measuredHeight, 190) && aboveSpace > belowSpace) {
+      available = aboveSpace;
+      top = Math.max(margin, rect.top - gap - Math.min(measuredHeight, available));
+    }
+
+    available = Math.max(90, Math.min(360, available));
+    pop.style.top = `${Math.round(top / rootZoom)}px`;
+    pop.style.left = `${Math.round(left / rootZoom)}px`;
+    pop.style.maxHeight = `${Math.round(available / rootZoom)}px`;
+    const fixedContent = head.getBoundingClientRect().height + foot.getBoundingClientRect().height + 4;
+    list.style.maxHeight = `${Math.max(40, Math.min(230, available - fixedContent)) / rootZoom}px`;
+  }
 
   function filtered() { const q = (search.value || '').trim().toLowerCase(); return !q ? options.slice() : options.filter(v => String(v).toLowerCase().includes(q)); }
   function renderList() {
@@ -394,12 +435,31 @@ function toggleTopPopover(key, triggerBtn, options) {
       row.appendChild(cb); row.appendChild(span); list.appendChild(row);
     });
   }
-  renderList(); search.addEventListener('input', renderList); triggerBtn.classList.add('active');
+  renderList();
+  search.addEventListener('input', () => { renderList(); positionTopPopover(); });
+  triggerBtn.classList.add('active');
+  positionTopPopover();
+
+  // Re-anchor the panel if the page, a scroll container, or the window moves.
+  const handleScroll = (event) => {
+    if (event && event.target && pop.contains(event.target)) return;
+    positionTopPopover();
+  };
+  pop._filterPopoverTrigger = triggerBtn;
+  pop._filterPopoverScroll = handleScroll;
+  pop._filterPopoverResize = positionTopPopover;
+  window.addEventListener('scroll', handleScroll, true);
+  window.addEventListener('resize', positionTopPopover);
+  search.focus({ preventScroll: true });
 }
 
 function closeAnyTopPopover() {
   const pop = document.querySelector('.multi-pop');
-  if (pop && pop.parentNode) pop.parentNode.removeChild(pop);
+  if (pop) {
+    if (pop._filterPopoverScroll) window.removeEventListener('scroll', pop._filterPopoverScroll, true);
+    if (pop._filterPopoverResize) window.removeEventListener('resize', pop._filterPopoverResize);
+    if (pop.parentNode) pop.parentNode.removeChild(pop);
+  }
   OPEN_TOP_FOR = null; CURRENT_TOP_WORKSET = new Set();
   document.querySelectorAll('.filter-chip-btn.active').forEach(b => b.classList.remove('active'));
 }
