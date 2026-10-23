@@ -24,12 +24,10 @@
   --success: #2F7F7F;
   --danger: #8A3D70;
   --warning: var(--brand-purple);
-  --chart-green: #73C8A9;   /* pastel mint: finished / on-time */
-  --chart-red: #F19A7E;     /* pastel coral: deferred / delayed */
-  --chart-blue: #8FB5FF;    /* pastel sky blue: pending / awaited */
-  --chart-purple: #ADA5F7;  /* secondary category */
-  --chart-teal: #A4DAD5;    /* secondary category */
-  --chart-pink: #E9B8D0;    /* secondary category */
+  /* Restore the original Task 360 chart palette; scoreboard/glass UI colors stay unchanged. */
+  --chart-green: var(--brand-teal);
+  --chart-red: var(--brand-purple);
+  --chart-blue: var(--brand-indigo);
 }
 
 body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text);min-height:100vh}
