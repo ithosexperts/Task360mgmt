@@ -572,3 +572,10 @@ header.card {
 @media (min-width:1500px) { .task360-kpi1-chart-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .task360-kpi1-chart-frame { height:360px; } }
 @media (max-width:1200px) { .task360-kpi1-filter-grid { grid-template-columns:repeat(4,minmax(0,1fr)); } }
 @media (max-width:800px) { .task360-kpi1-chart-grid { grid-template-columns:minmax(0,1fr); } .task360-kpi1-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .task360-kpi1-filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .task360-kpi1-chart-card { min-height:320px; } .task360-kpi1-chart-frame { height:280px; } }
+
+
+/* Shared filter row: common dimensions appear once, followed by distinct KPI statuses. */
+#filters-below-views { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+#filters-below-views .filter-chip-btn { min-width: 0; }
+@media (max-width: 1200px) { #filters-below-views { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 640px) { #filters-below-views { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
