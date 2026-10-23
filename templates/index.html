@@ -5,7 +5,7 @@
   <title>Task 360 Management System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=task360-kpi2-fill-space-20261023-v3">
+  <link rel="stylesheet" href="/static/style.css?v=task360-status-filter-consolidation-20261023-v1">
   <style>
       /* Fix for Calendar Icon appearing dark on dark mode */
       input[type="date"] { color-scheme: light; }
@@ -55,8 +55,8 @@
     </div>
     
     <div class="mt-3 card p-3" id="multi-select-container">
-      <div class="task360-filter-heading"><strong>Shared Task Filters</strong><span class="muted">Applies to the status scoreboard, task board, KPI 1 and KPI 2 charts</span></div>
-      <div id="filters-below-views" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3"></div>
+      <div class="task360-filter-heading"><strong>Shared Filters + KPI Status</strong><span class="muted">Common filters apply to both KPIs; KPI 1 Status and KPI 2 Status stay separate</span></div>
+      <div id="filters-below-views" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3"></div>
     </div>
   </section>
 
@@ -64,7 +64,7 @@
     <div id="main-dashboard-content" class="space-y-6">
       <section id="kpi1-analytics-section" class="task360-analytics-section space-y-4">
         <div class="task360-analytics-heading">
-          <div><h2 class="text-xl font-extrabold">KPI 1 — Delay &amp; Lead Time Analytics</h2><p class="muted text-sm">Uses the shared filters above · follows the shared Admin / My Team / Me view</p></div>
+          <div><h2 class="text-xl font-extrabold">KPI 1 — Delay &amp; Lead Time Analytics</h2><p class="muted text-sm">Uses the shared filters above · KPI 1 Status has its own filter chip</p></div>
           <div class="task360-kpi1-actions"><span id="kpi1-load-status" class="muted text-xs" role="status">Loading KPI 1 analytics…</span></div>
         </div>
         <section id="kpi1-kpi-section" class="task360-kpi1-metrics">
@@ -187,8 +187,8 @@
     </div>
   </main>
 
-  <script src="/static/app.js?v=task360-kpi2-fill-space-20261023-v3"></script>
-  <script src="/static/stage_form.js?v=task360-kpi2-fill-space-20261023-v3"></script>
-  <script src="/static/kpi1-analytics.js?v=task360-kpi1-shared-filters-kpi2-fill-20261023-v3"></script>
+  <script src="/static/app.js?v=task360-status-filter-consolidation-20261023-v1"></script>
+  <script src="/static/stage_form.js?v=task360-status-filter-consolidation-20261023-v1"></script>
+  <script src="/static/kpi1-analytics.js?v=task360-status-filter-consolidation-20261023-v1"></script>
 </body>
 </html>
