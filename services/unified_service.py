@@ -53,6 +53,32 @@ def numeric(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def fmt_lead_time(value: Any) -> str:
+    """Format source LeadTimeMins as HH:MM:SS for display in the records table.
+
+    The SQL/API field is expressed in minutes by the existing transformation.
+    Preserve an already formatted H:M:S string exactly; otherwise convert minutes
+    to a duration string (hours are not wrapped at 24).
+    """
+    value = clean_null(value)
+    if value in (None, ""):
+        return ""
+    raw = str(value).strip()
+    if re.fullmatch(r"\d{1,}:([0-5]\d):([0-5]\d)", raw):
+        return raw
+    try:
+        minutes = float(value)
+    except (TypeError, ValueError):
+        # If the upstream API already represents a SQL duration in another
+        # textual form, preserve it instead of replacing it with zero.
+        return raw
+    total_seconds = int(round(abs(minutes) * 60))
+    hours, remainder = divmod(total_seconds, 3600)
+    mins, seconds = divmod(remainder, 60)
+    sign = "-" if minutes < 0 else ""
+    return f"{sign}{hours:02d}:{mins:02d}:{seconds:02d}"
+
+
 def fmt_date(value: Any) -> str:
     value = clean_null(value)
     if value in (None, ""):
@@ -254,11 +280,11 @@ def _group_summaries(records: list[dict[str, Any]]) -> dict[tuple[str, ...], dic
 
 
 def kpi1_row(record: dict[str, Any]) -> list[Any]:
-    lead_hours = round(numeric(record.get("LeadTimeMins")) / 60.0, 4)
+    lead_time = fmt_lead_time(record.get("LeadTimeMins"))
     delay_hours = round(numeric(record.get("DelayMins")) / 60.0, 4)
     return [
         _row_id(record), record.get("FMSName") or "", record.get("StageName") or "",
-        lead_hours, fmt_date(record.get("PLTimeStamp")), record.get("DoerName") or "",
+        lead_time, fmt_date(record.get("PLTimeStamp")), record.get("DoerName") or "",
         fmt_date(record.get("ALTimeStamp")), delay_hours, kpi1_status(record),
         record.get("ScoreMonth") or "", record.get("ScoreWeekNo") or "",
         record.get("ScoreDayNo") or "", clean_null(record.get("KPI01_Score")),
@@ -288,7 +314,7 @@ def kpi2_row(record: dict[str, Any], summaries: dict[tuple[str, ...], dict[str, 
         record.get("StageNo") or "", record.get("DoerCode") or "",
         record.get("KPIRecordKey") or "", record.get("ManagerName") or "",
         record.get("ManagerChain") or "", clean_null(record.get("TaskStatus_KPI02")) or "",
-        round(numeric(record.get("LeadTimeMins")) / 60.0, 4),
+        fmt_lead_time(record.get("LeadTimeMins")),
         clean_null(record.get("ManagerCode")) or "",
         clean_null(record.get("KPI01_Score")),
         clean_null(record.get("KPI01_ScoreFactored")),
