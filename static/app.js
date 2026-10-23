@@ -139,6 +139,8 @@ function setMode(mode) {
   resetTopFilters(); clearDrill(); closeAnyTopPopover(); currentPage = 1;
   renderTopFilters(HEADERS, ALL_DATA);
   renderAll();
+  // Keep the KPI 1 charts on this unified screen synchronized with the shared Admin / My Team / Me view.
+  window.dispatchEvent(new CustomEvent('task360:view-changed', { detail: { mode } }));
 }
 
 function renderFaultyTable() {
@@ -855,6 +857,7 @@ window.onload = function() {
   attach('reset-filters-btn', 'click', () => {
       resetTopFilters(); clearDrill(); currentPage = 1;
       renderTopFilters(HEADERS, ALL_DATA); renderAll();
+      if (typeof window.resetKpi1Filters === 'function') window.resetKpi1Filters();
   });
   
   attach('drill-back', 'click', () => { 
