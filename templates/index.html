@@ -2,10 +2,10 @@
 <html lang="en" data-theme="light">
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Task 360 | KPI 360 2</title>
+  <title>Task 360 Management System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=glass-prism-filters-20261022">
+  <link rel="stylesheet" href="/static/style.css?v=task360-unified-20261023">
   <style>
       /* Fix for Calendar Icon appearing dark on dark mode */
       input[type="date"] { color-scheme: light; }
@@ -16,14 +16,10 @@
   <header class="p-4 flex flex-col gap-3 md:flex-row md:justify-between md:items-center card rounded-none sticky top-0 z-10">
     <div class="flex items-center gap-3">
       <div class="h-3 w-3 rounded-full" style="background:var(--primary);box-shadow:var(--glow)"></div>
-      <h1 class="text-2xl font-extrabold text-primary neon">Task 360 · KPI 360</h1>
+      <h1 class="text-2xl font-extrabold text-primary neon">Task 360 Management System</h1>
     </div>
     
     <div class="flex flex-wrap items-center gap-3">
-      <nav class="flex items-center gap-2" aria-label="KPI dashboard">
-        <a href="/kpi1" data-kpi-route="/kpi1" class="btn text-sm">KPI 360 1 · Delay</a>
-        <a href="/" data-kpi-route="/" class="btn text-sm" aria-current="page" style="border-color:var(--primary)">KPI 360 2 · Completion</a>
-      </nav>
       <div class="text-sm muted" id="user-email-display">Loading User...</div>
       
       <div class="flex items-center gap-1 border rounded p-1.5 px-2" style="border-color:var(--border); background:var(--bg);">
@@ -95,7 +91,7 @@
       </section>
 
       <section id="database-section" class="card p-4 space-y-4">
-        <h2 class="text-xl font-semibold border-b pb-2" style="border-color:var(--border)">Full Database View (All Records)</h2>
+        <h2 class="text-xl font-semibold border-b pb-2" style="border-color:var(--border)">Task Records & KPI Breakdown</h2>
         <div id="table-body" class="record-table-wrap" aria-live="polite">
           <div class="record-list-message">Loading data...</div>
         </div>
@@ -139,20 +135,7 @@
     </div>
   </main>
 
-  <script src="/static/app.js?v=glass-prism-filters-20261022"></script>
-  <script src="/static/stage_form.js?v=glass-prism-filters-20261022"></script>
-  <script>
-    // Keep the active employee identity when switching between the two dashboards.
-    document.querySelectorAll('[data-kpi-route]').forEach((link) => {
-      link.addEventListener('click', () => {
-        const current = new URLSearchParams(window.location.search);
-        const email = current.get('useremail') || current.get('email') || '';
-        const route = link.getAttribute('data-kpi-route');
-        const query = new URLSearchParams();
-        if (email) query.set(route === '/kpi1' ? 'email' : 'useremail', email);
-        link.href = route + (query.toString() ? `?${query.toString()}` : '');
-      });
-    });
-  </script>
+  <script src="/static/app.js?v=task360-unified-20261023"></script>
+  <script src="/static/stage_form.js?v=task360-unified-20261023"></script>
 </body>
 </html>
