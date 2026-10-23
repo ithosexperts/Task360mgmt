@@ -393,13 +393,59 @@ header.card {
 }
 
 
+
+/* Shared Planned / Pending / Complete scoreboard above the aligned task panes. */
+.task360-status-scoreboard {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin: 4px 0 12px;
+}
+.task360-status-score-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px 16px;
+  text-align: left;
+  border: 1px solid rgba(255,255,255,.86);
+  border-radius: 15px;
+  color: #30395f;
+  background: linear-gradient(125deg, rgba(255,255,255,.92), rgba(233,239,255,.77) 55%, rgba(255,239,232,.65));
+  box-shadow: 0 8px 22px rgba(64,75,143,.09), inset 0 1px 0 rgba(255,255,255,.95);
+  backdrop-filter: blur(15px) saturate(135%);
+  -webkit-backdrop-filter: blur(15px) saturate(135%);
+  cursor: pointer;
+  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+}
+.task360-status-score-card:hover { transform: translateY(-1px); box-shadow: 0 12px 26px rgba(64,75,143,.13), inset 0 1px 0 #fff; }
+.task360-status-score-card:focus-visible { outline: 3px solid rgba(112,135,235,.42); outline-offset: 2px; }
+.task360-status-score-card.active { border-color: rgba(78,91,180,.72); box-shadow: 0 0 0 3px rgba(131,153,255,.18), 0 12px 26px rgba(64,75,143,.13), inset 0 1px 0 #fff; }
+.task360-status-score-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 14px; }
+.task360-status-score-icon svg { width: 24px; height: 24px; }
+.task360-status-planned .task360-status-score-icon { color: #5870cb; background: linear-gradient(135deg, rgba(153,176,255,.42), rgba(194,210,255,.32)); }
+.task360-status-pending .task360-status-score-icon { color: #ba704d; background: linear-gradient(135deg, rgba(255,190,154,.48), rgba(255,220,197,.34)); }
+.task360-status-complete .task360-status-score-icon { color: #248e7b; background: linear-gradient(135deg, rgba(133,224,199,.48), rgba(188,245,225,.34)); }
+.task360-status-score-copy { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.task360-status-score-label { font-size: .82rem; font-weight: 800; letter-spacing: .01em; }
+.task360-status-score-copy strong { font-size: 1.65rem; line-height: 1.1; font-weight: 850; color: #202a51; font-variant-numeric: tabular-nums; }
+.task360-status-score-copy small { font-size: .72rem; color: #7480a6; }
+@media (max-width: 760px) {
+  .task360-status-scoreboard { grid-template-columns: 1fr; gap: 8px; }
+  .task360-status-score-card { padding: 12px; }
+}
+
 /* Task 360 Management System: one aligned table with fixed task details and independent KPI scrollers. */
 .task360-record-wrap { overflow-x: auto; overflow-y: visible; padding: 2px 1px 12px; }
 .task360-merged-layout {
   display: grid;
-  grid-template-columns: 1300px 530px 530px;
+  /* Fixed task pane + fixed KPI 1 pane + flexible KPI 2 pane. The 2240px
+     minimum preserves horizontal scrolling on narrower screens, while
+     wider screens let KPI 2 fill all remaining card space. */
+  grid-template-columns: 1300px 390px minmax(530px, 1fr);
   gap: 10px;
-  width: max-content;
+  width: max(100%, 2240px);
   min-width: 100%;
   align-items: stretch;
 }
@@ -487,7 +533,7 @@ header.card {
 .task360-merged-table .stage-form-show-button:hover:not(:disabled) { filter: brightness(1.09); transform: translateY(-1px); }
 .task360-merged-table .stage-form-show-button:disabled { opacity: .42; }
 @media (max-width: 900px) {
-  .task360-merged-layout { grid-template-columns: 1300px 530px 530px; }
+  .task360-merged-layout { grid-template-columns: 1300px 390px minmax(530px, 1fr); width: max(100%, 2240px); }
   .task360-pane-title { font-size: 1rem; }
   .task360-merged-table thead th, .task360-merged-table tbody td { font-size: .82rem; }
 }
