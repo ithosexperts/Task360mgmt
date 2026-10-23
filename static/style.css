@@ -397,7 +397,7 @@ header.card {
 .task360-record-wrap { overflow-x: auto; overflow-y: visible; padding: 2px 1px 12px; }
 .task360-merged-layout {
   display: grid;
-  grid-template-columns: 1300px 390px 530px;
+  grid-template-columns: 1300px 530px 530px;
   gap: 10px;
   width: max-content;
   min-width: 100%;
@@ -487,7 +487,7 @@ header.card {
 .task360-merged-table .stage-form-show-button:hover:not(:disabled) { filter: brightness(1.09); transform: translateY(-1px); }
 .task360-merged-table .stage-form-show-button:disabled { opacity: .42; }
 @media (max-width: 900px) {
-  .task360-merged-layout { grid-template-columns: 1300px 390px 530px; }
+  .task360-merged-layout { grid-template-columns: 1300px 530px 530px; }
   .task360-pane-title { font-size: 1rem; }
   .task360-merged-table thead th, .task360-merged-table tbody td { font-size: .82rem; }
 }
