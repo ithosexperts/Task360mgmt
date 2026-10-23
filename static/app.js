@@ -347,14 +347,32 @@ function renderKPIs(data) {
     if (bucket === 'deferred') deferredCount++;
     else if (bucket === 'finished') finishedCount++;
   });
-  setKPI(deferredCount.toLocaleString(), finishedCount.toLocaleString(), data.length.toLocaleString(), '0.00');
+
+  // Use the same Lead Time field shown in the background task table/API payload.
+  // The API currently supplies this value in hours; sum the selected rows rather
+  // than substituting or recalculating it from Delay Hours.
+  const leadTimeIndex = HEADERS.findIndex(header => normalizeHeaderKey(header) === 'leadtime');
+  let leadTimeTotal = 0;
+  let hasLeadTime = leadTimeIndex >= 0;
+  if (hasLeadTime) {
+    data.forEach(row => {
+      const raw = row?.[leadTimeIndex];
+      if (raw == null || String(raw).trim() === '') return;
+      const value = Number(raw);
+      if (Number.isFinite(value)) leadTimeTotal += value;
+    });
+  }
+  const leadTimeDisplay = hasLeadTime
+    ? leadTimeTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : 'N/A';
+  setKPI(deferredCount.toLocaleString(), finishedCount.toLocaleString(), data.length.toLocaleString(), leadTimeDisplay);
 }
 
-function setKPI(a, b, c, d) { 
-  const kD = document.getElementById('kpi-delayed'); if(kD) kD.textContent = a; 
-  const kO = document.getElementById('kpi-ontime'); if(kO) kO.textContent = b; 
-  const kT = document.getElementById('kpi-total'); if(kT) kT.textContent = c; 
-  const kA = document.getElementById('kpi-avg-delay'); if(kA) kA.textContent = d; 
+function setKPI(a, b, c, leadTime) {
+  const kD = document.getElementById('kpi-delayed'); if(kD) kD.textContent = a;
+  const kO = document.getElementById('kpi-ontime'); if(kO) kO.textContent = b;
+  const kT = document.getElementById('kpi-total'); if(kT) kT.textContent = c;
+  const kLead = document.getElementById('kpi-lead-time'); if(kLead) kLead.textContent = leadTime;
 }
 
 function resetTopFilters() { for (const k in TOP_FILTERS) delete TOP_FILTERS[k]; SCOREBOARD_STATUS_FILTER = null; }
