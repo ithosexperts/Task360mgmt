@@ -5,7 +5,7 @@
   <title>Task 360 Management System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=task360-status-filter-consolidation-20261023-v1">
+  <link rel="stylesheet" href="/static/style.css?v=task360-scoreboard-pastel-20261023-v2">
   <style>
       /* Fix for Calendar Icon appearing dark on dark mode */
       input[type="date"] { color-scheme: light; }
@@ -129,6 +129,10 @@
       <section id="database-section" class="card p-4 space-y-4">
         <h2 class="text-xl font-semibold border-b pb-2" style="border-color:var(--border)">Task Records & KPI Breakdown</h2>
         <div id="task-status-scoreboard" class="task360-status-scoreboard" role="group" aria-label="Filter tasks by status">
+          <button type="button" class="task360-status-score-card task360-status-all" data-task-status-score="All" aria-pressed="true">
+            <span class="task360-status-score-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h8M8 17h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+            <span class="task360-status-score-copy"><span class="task360-status-score-label">All</span><strong id="status-count-all">0</strong><small>All matching tasks</small></span>
+          </button>
           <button type="button" class="task360-status-score-card task360-status-planned" data-task-status-score="Planned" aria-pressed="false">
             <span class="task360-status-score-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="5" width="17" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M7.5 3.5v4M16.5 3.5v4M4 9.5h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 13h3M8 16h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
             <span class="task360-status-score-copy"><span class="task360-status-score-label">Planned</span><strong id="status-count-planned">0</strong><small>Planned time not crossed</small></span>
@@ -185,8 +189,8 @@
     </div>
   </main>
 
-  <script src="/static/app.js?v=task360-status-filter-consolidation-20261023-v1"></script>
-  <script src="/static/stage_form.js?v=task360-status-filter-consolidation-20261023-v1"></script>
-  <script src="/static/kpi1-analytics.js?v=task360-status-filter-consolidation-20261023-v1"></script>
+  <script src="/static/app.js?v=task360-scoreboard-pastel-20261023-v2"></script>
+  <script src="/static/stage_form.js?v=task360-scoreboard-pastel-20261023-v2"></script>
+  <script src="/static/kpi1-analytics.js?v=task360-scoreboard-pastel-20261023-v2"></script>
 </body>
 </html>
