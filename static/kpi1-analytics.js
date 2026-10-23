@@ -11,20 +11,50 @@
     topFilters: {}, currentWorkset: new Set(), openFilterKey: null,
     drill: { status: null, fms: null, stage: null },
     leadDrill: { fms: null, stage: null },
+    kpi1StatusFilter: new Set(), scoreboardStatus: null,
     charts: { fms: null, status: null, leadBar: null, leadPie: null },
     email: ''
   };
 
-  const FILTER_ORDER = [
-    { key: 'KPI_MONTH', label: 'KPI Month' }, { key: 'WEEK_NO', label: 'Week No' },
-    { key: 'DAY_NO', label: 'Day No' }, { key: 'DOER', label: 'Doer' },
-    { key: 'FMS', label: 'FMS' }, { key: 'STAGE', label: 'Stage' },
-    { key: 'TASK_STATUS', label: 'Task Status' }
-  ];
+  const SHARED_FILTER_KEYS = ['KPI_MONTH', 'WEEK_NO', 'DAY_NO', 'DOER', 'FMS', 'STAGE'];
 
   const byId = (id) => document.getElementById(id);
   const normalKey = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const safeText = (value) => value == null || String(value).trim() === '' ? '—' : String(value);
+
+  function parseTaskDateValue(value) {
+    if (value == null || String(value).trim() === '') return null;
+    const text = String(value).trim();
+    const native = new Date(text);
+    if (!Number.isNaN(native.getTime())) return native;
+    const match = text.match(/^(\d{1,2})[- ]([A-Za-z]{3,9})[- ](\d{4})(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (!match) return null;
+    const months = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+    const month = months[match[2].slice(0,3).toLowerCase()];
+    if (month == null) return null;
+    const parsed = new Date(Number(match[3]), month, Number(match[1]), Number(match[4] || 0), Number(match[5] || 0), Number(match[6] || 0));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function genericTaskStatus(row) {
+    const status = String(cell(row, 'TASK_STATUS') || '').trim().toLowerCase();
+    if (['finish', 'complet', 'defer', 'done', 'closed', 'cancel', 'missed', 'overdue', 'not done', 'not complet', 'unfinished', 'uncompleted'].some(term => status.includes(term))) return 'Complete';
+    const planned = parseTaskDateValue(cell(row, 'PLANNED'));
+    return planned && Date.now() > planned.getTime() ? 'Pending' : 'Planned';
+  }
+
+  function isWithinSharedDateRange(row) {
+    const planned = parseTaskDateValue(cell(row, 'PLANNED'));
+    const startValue = byId('start-date')?.value || '';
+    const endValue = byId('end-date')?.value || '';
+    if (!startValue && !endValue) return true;
+    if (!planned) return false;
+    const start = startValue ? new Date(`${startValue}T00:00:00`) : null;
+    const end = endValue ? new Date(`${endValue}T23:59:59.999`) : null;
+    if (start && planned < start) return false;
+    if (end && planned > end) return false;
+    return true;
+  }
 
   function buildIndexes(headers) {
     const map = {};
@@ -93,6 +123,7 @@
     else state.allRows = state.partitions.me || [];
     if (rerender) {
       Object.keys(state.topFilters).forEach(key => { state.topFilters[key] = new Set(); });
+      state.kpi1StatusFilter = new Set();
       resetDrill();
       renderFilters();
       renderAll();
@@ -101,11 +132,17 @@
 
   function filteredRows() {
     let rows = state.allRows.slice();
-    for (const key of Object.keys(state.topFilters)) {
+    for (const key of SHARED_FILTER_KEYS) {
       const selected = state.topFilters[key];
       const index = state.indexes[key];
       if (selected && selected.size && index != null) rows = rows.filter(row => selected.has(String(row[index] ?? '').trim()));
     }
+    const statusIndex = state.indexes.TASK_STATUS;
+    if (state.kpi1StatusFilter.size && statusIndex != null) {
+      rows = rows.filter(row => state.kpi1StatusFilter.has(String(row[statusIndex] ?? '').trim()));
+    }
+    if (state.scoreboardStatus) rows = rows.filter(row => genericTaskStatus(row) === state.scoreboardStatus);
+    rows = rows.filter(isWithinSharedDateRange);
     if (state.drill.status) rows = rows.filter(row => statusBucket(row) === state.drill.status);
     if (state.drill.fms) rows = rows.filter(row => String(cell(row, 'FMS') || '').trim() === state.drill.fms);
     if (state.drill.stage) rows = rows.filter(row => String(cell(row, 'STAGE') || '').trim() === state.drill.stage);
@@ -268,29 +305,33 @@
   }
 
   function renderFilters() {
-    const wrap = byId('kpi1-filters-below-views');
+    const wrap = byId('filters-below-views');
     if (!wrap) return;
-    wrap.replaceChildren();
-    if (!state.indexes || !Object.keys(state.indexes).length) return;
-    const sourceRows = state.allRows || [];
-    FILTER_ORDER.forEach(({ key, label }) => {
-      const column = state.indexes[key];
-      if (column == null) return;
-      const values = Array.from(new Set(sourceRows.map(row => String(row[column] ?? '').trim()).filter(Boolean)))
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-      if (!state.topFilters[key]) state.topFilters[key] = new Set();
-      const btn = document.createElement('button');
-      btn.type = 'button'; btn.className = 'kpi1-filter-chip-btn';
-      btn.innerHTML = `<span>${label}</span><span class="filter-chip-count">${state.topFilters[key].size || 0}</span>`;
-      btn.addEventListener('click', event => { event.stopPropagation(); toggleFilter(key, label, btn, values); });
-      wrap.appendChild(btn);
+    wrap.querySelector('[data-kpi1-status-chip="true"]')?.remove();
+    if (!state.indexes || state.indexes.TASK_STATUS == null || !state.allRows.length) return;
+    const column = state.indexes.TASK_STATUS;
+    const values = Array.from(new Set(state.allRows.map(row => String(row[column] ?? '').trim()).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'filter-chip-btn kpi1-filter-chip-btn';
+    btn.dataset.kpi1StatusChip = 'true';
+    btn.dataset.kpi1FilterKey = 'KPI1_STATUS';
+    btn.innerHTML = `<span>KPI 1 Status</span><span class="filter-chip-count">${state.kpi1StatusFilter.size || 0}</span>`;
+    btn.addEventListener('click', event => {
+      event.stopPropagation();
+      toggleFilter('KPI1_STATUS', 'KPI 1 Status', btn, values);
     });
+    // Keep common filters first, then KPI 1 Status, then KPI 2 Status.
+    const kpi2StatusButton = wrap.querySelector('[data-top-key="TASK_STATUS"]');
+    if (kpi2StatusButton) wrap.insertBefore(btn, kpi2StatusButton);
+    else wrap.appendChild(btn);
   }
 
   function toggleFilter(key, label, trigger, options) {
     closeFilter();
     state.openFilterKey = key;
-    state.currentWorkset = new Set(state.topFilters[key] || []);
+    state.currentWorkset = new Set(key === 'KPI1_STATUS' ? state.kpi1StatusFilter : (state.topFilters[key] || []));
     const pop = document.createElement('div'); pop.className = 'kpi1-multi-pop'; pop.dataset.key = key;
     const head = document.createElement('div'); head.className = 'multi-head';
     const search = document.createElement('input'); search.type = 'search'; search.placeholder = `Search ${label.toLowerCase()}...`;
@@ -304,8 +345,10 @@
     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn btn-clear'; cancel.textContent = 'Cancel'; cancel.addEventListener('click', closeFilter);
     const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'btn'; apply.textContent = 'Apply';
     apply.addEventListener('click', () => {
-      state.topFilters[key] = new Set(state.currentWorkset);
-      const badge = trigger.querySelector('.filter-chip-count'); if (badge) badge.textContent = state.topFilters[key].size || 0;
+      if (key === 'KPI1_STATUS') state.kpi1StatusFilter = new Set(state.currentWorkset);
+      else state.topFilters[key] = new Set(state.currentWorkset);
+      const currentSet = key === 'KPI1_STATUS' ? state.kpi1StatusFilter : state.topFilters[key];
+      const badge = trigger.querySelector('.filter-chip-count'); if (badge) badge.textContent = currentSet.size || 0;
       closeFilter(); renderAll();
     });
     foot.append(cancel, apply); pop.appendChild(foot); document.body.appendChild(pop);
@@ -378,7 +421,7 @@
       state.partitions = payload.partitions || { admin: [], myTeam: [], me: [] };
       state.roleInfo = payload.roleInfo || {};
       updateMode(activeGlobalMode(), false);
-      Object.keys(state.indexes).forEach(key => { if (!state.topFilters[key]) state.topFilters[key] = new Set(); });
+      SHARED_FILTER_KEYS.forEach(key => { if (!state.topFilters[key]) state.topFilters[key] = new Set(); });
       renderFilters(); renderAll();
       if (banner) { banner.hidden = false; banner.textContent = `KPI 1 analytics loaded · ${state.allRows.length.toLocaleString()} records in ${state.mode === 'myTeam' ? 'My Team' : state.mode === 'me' ? 'Me' : 'Admin'} view`; }
       window.dispatchEvent(new CustomEvent('task360:kpi1-ready'));
@@ -393,9 +436,16 @@
   window.addEventListener('load', () => loadKpi1Analytics(false), { once: true });
   byId('refresh-button')?.addEventListener('click', () => loadKpi1Analytics(true));
   window.resetKpi1Filters = () => {
-    Object.keys(state.topFilters).forEach(key => { state.topFilters[key] = new Set(); });
+    state.kpi1StatusFilter = new Set();
     resetDrill(); renderFilters(); renderAll();
   };
+  window.addEventListener('task360:shared-filters-changed', event => {
+    const filters = event.detail?.filters || {};
+    SHARED_FILTER_KEYS.forEach(key => { state.topFilters[key] = new Set(filters[key] || []); });
+    state.scoreboardStatus = event.detail?.scoreboardStatus || null;
+    renderAll();
+  });
+  ['start-date', 'end-date'].forEach(id => byId(id)?.addEventListener('change', renderAll));
   byId('kpi1-reset-filters-btn')?.addEventListener('click', window.resetKpi1Filters);
   byId('kpi1-drill-back')?.addEventListener('click', () => { resetDrill(); renderAll(); });
   byId('kpi1-ld-drill-back')?.addEventListener('click', () => { state.leadDrill = { fms: null, stage: null }; renderAll(); });
