@@ -347,32 +347,14 @@ function renderKPIs(data) {
     if (bucket === 'deferred') deferredCount++;
     else if (bucket === 'finished') finishedCount++;
   });
-
-  // Use the same Lead Time field shown in the background task table/API payload.
-  // The API currently supplies this value in hours; sum the selected rows rather
-  // than substituting or recalculating it from Delay Hours.
-  const leadTimeIndex = HEADERS.findIndex(header => normalizeHeaderKey(header) === 'leadtime');
-  let leadTimeTotal = 0;
-  let hasLeadTime = leadTimeIndex >= 0;
-  if (hasLeadTime) {
-    data.forEach(row => {
-      const raw = row?.[leadTimeIndex];
-      if (raw == null || String(raw).trim() === '') return;
-      const value = Number(raw);
-      if (Number.isFinite(value)) leadTimeTotal += value;
-    });
-  }
-  const leadTimeDisplay = hasLeadTime
-    ? leadTimeTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : 'N/A';
-  setKPI(deferredCount.toLocaleString(), finishedCount.toLocaleString(), data.length.toLocaleString(), leadTimeDisplay);
+  setKPI(deferredCount.toLocaleString(), finishedCount.toLocaleString(), data.length.toLocaleString(), '0.00');
 }
 
-function setKPI(a, b, c, leadTime) {
-  const kD = document.getElementById('kpi-delayed'); if(kD) kD.textContent = a;
-  const kO = document.getElementById('kpi-ontime'); if(kO) kO.textContent = b;
-  const kT = document.getElementById('kpi-total'); if(kT) kT.textContent = c;
-  const kLead = document.getElementById('kpi-lead-time'); if(kLead) kLead.textContent = leadTime;
+function setKPI(a, b, c, d) { 
+  const kD = document.getElementById('kpi-delayed'); if(kD) kD.textContent = a; 
+  const kO = document.getElementById('kpi-ontime'); if(kO) kO.textContent = b; 
+  const kT = document.getElementById('kpi-total'); if(kT) kT.textContent = c; 
+  const kA = document.getElementById('kpi-avg-delay'); if(kA) kA.textContent = d; 
 }
 
 function resetTopFilters() { for (const k in TOP_FILTERS) delete TOP_FILTERS[k]; SCOREBOARD_STATUS_FILTER = null; }
@@ -872,11 +854,22 @@ function renderDashboardOnly() {
 function renderTaskStatusScoreboard(baseRows) {
   const wrap = document.getElementById('task-status-scoreboard');
   if (!wrap) return;
+  const rows = Array.isArray(baseRows) ? baseRows : [];
   const counts = { Planned: 0, Pending: 0, Complete: 0 };
-  (baseRows || []).forEach(row => {
+  rows.forEach(row => {
     const status = getGenericTaskStatus(row);
     if (Object.prototype.hasOwnProperty.call(counts, status)) counts[status]++;
   });
+
+  const allCount = document.getElementById('status-count-all');
+  if (allCount) allCount.textContent = rows.length.toLocaleString();
+  const allButton = wrap.querySelector('[data-task-status-score="All"]');
+  if (allButton) {
+    const active = !SCOREBOARD_STATUS_FILTER;
+    allButton.classList.toggle('active', active);
+    allButton.setAttribute('aria-pressed', String(active));
+  }
+
   Object.entries({ Planned: 'planned', Pending: 'pending', Complete: 'complete' }).forEach(([status, suffix]) => {
     const count = document.getElementById(`status-count-${suffix}`);
     if (count) count.textContent = (counts[status] || 0).toLocaleString();
@@ -890,7 +883,8 @@ function renderTaskStatusScoreboard(baseRows) {
 }
 
 function setTaskStatusScoreFilter(status) {
-  SCOREBOARD_STATUS_FILTER = SCOREBOARD_STATUS_FILTER === status ? null : status;
+  if (status === 'All') SCOREBOARD_STATUS_FILTER = null;
+  else SCOREBOARD_STATUS_FILTER = SCOREBOARD_STATUS_FILTER === status ? null : status;
   closeAnyTopPopover();
   DRILL.status = null;
   currentPage = 1;
