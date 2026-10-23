@@ -549,16 +549,12 @@ function renderTable(data) {
   const paginationControls = document.getElementById('pagination-controls');
   if (!container) return;
 
-  container.className = 'record-table-wrap';
+  container.className = 'record-table-wrap task360-record-wrap';
   container.setAttribute('aria-busy', 'false');
   container.replaceChildren();
 
   const rows = Array.isArray(data) ? data : [];
-  let headers = Array.isArray(HEADERS) ? HEADERS.slice() : [];
-  if (!headers.length && rows.length && rows[0] && !Array.isArray(rows[0]) && typeof rows[0] === 'object') {
-    headers = Object.keys(rows[0]);
-  }
-
+  const headers = Array.isArray(HEADERS) ? HEADERS.slice() : [];
   const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
   currentPage = Math.max(1, Math.min(currentPage, totalPages));
   const startIdx = (currentPage - 1) * ROWS_PER_PAGE;
@@ -572,111 +568,202 @@ function renderTable(data) {
     if (paginationControls) paginationControls.style.display = 'none';
   } else {
     if (paginationControls) paginationControls.style.display = 'flex';
-    const table = document.createElement('table');
-    table.className = 'data-record-table';
-    table.setAttribute('aria-label', 'Full database records');
-    const thead = document.createElement('thead');
-    const headRow = document.createElement('tr');
-    headers.forEach(header => {
-      const th = document.createElement('th');
-      th.className = 'wrap-th';
-      th.scope = 'col';
-      th.textContent = String(header ?? '');
-      headRow.appendChild(th);
-    });
-    // A dedicated Forms action column is separate from the Task Status column.
-    const formsHeader = document.createElement('th');
-    formsHeader.className = 'wrap-th forms-action-column';
-    formsHeader.scope = 'col';
-    formsHeader.textContent = 'Forms';
-    headRow.appendChild(formsHeader);
-    thead.appendChild(headRow);
 
-    const tbody = document.createElement('tbody');
-    const fragment = document.createDocumentFragment();
     const headerIndex = new Map();
     headers.forEach((header, index) => {
       const key = normalizeHeaderKey(header);
       if (!headerIndex.has(key)) headerIndex.set(key, index);
     });
-    const findHeader = (...names) => {
+    const findIndex = (...names) => {
       for (const name of names) {
-        const index = headerIndex.get(normalizeHeaderKey(name));
-        if (index != null) return index;
+        const idx = headerIndex.get(normalizeHeaderKey(name));
+        if (idx != null) return idx;
       }
       return -1;
     };
-    const recordCol = findHeader('Record #', 'Record ID', 'RowID', 'Task ID');
-    const appCol = findHeader('App ID', 'AppID', 'App_ID', 'Application ID');
-    const stageCol = findHeader('Stage No', 'StageNo', 'Stage_No', 'Stage Number');
-    pageData.forEach(row => {
-      const tr = document.createElement('tr');
-      headers.forEach((header, index) => {
-        const td = document.createElement('td');
-        const value = getTableCellValue(row, header, index);
-        td.textContent = value == null || String(value).trim() === '' ? '—' : String(value);
-        if (normalizeHeaderKey(header) === 'taskstatus') {
-          const status = String(value ?? '').trim();
-          const statusKey = normalizeHeaderKey(status);
-          if (statusKey.includes('finish') || statusKey.includes('complete') || statusKey.includes('doneontime')) td.classList.add('cell-status--finished');
-          else if (statusKey.includes('defer') || statusKey.includes('delay') || statusKey.includes('overdue')) td.classList.add('cell-status--deferred');
-          else td.classList.add('cell-status--pending');
+    const readValue = (row, ...names) => {
+      const idx = findIndex(...names);
+      return idx >= 0 ? getTableCellValue(row, headers[idx], idx) : '';
+    };
+    const displayValue = value => value == null || String(value).trim() === '' ? '—' : String(value);
 
-          const canLaunch = statusKey.startsWith('planned') || statusKey.startsWith('pending') || statusKey.startsWith('awaited');
-          const recordId = recordCol >= 0 ? getTableCellValue(row, headers[recordCol], recordCol) : '';
-          const appId = appCol >= 0 ? getTableCellValue(row, headers[appCol], appCol) : '';
-          const stageNo = stageCol >= 0 ? getTableCellValue(row, headers[stageCol], stageCol) : '';
-          if (canLaunch && [recordId, appId, stageNo].every(item => item != null && String(item).trim() !== '')) {
-            const launch = document.createElement('button');
-            launch.type = 'button';
-            launch.className = 'stage-form-status-link';
-            launch.dataset.stageFormLaunch = 'true';
-            launch.dataset.recordId = String(recordId).trim();
-            launch.dataset.appId = String(appId).trim();
-            launch.dataset.stageNo = String(stageNo).trim();
-            launch.textContent = status;
-            launch.title = `Open stage form · Record ${recordId} · ${appId} · ${stageNo}`;
-            td.replaceChildren(launch);
-          } else if (canLaunch) {
-            td.title = 'Stage form cannot open because Record #, App ID, or Stage No is missing.';
-          }
-        }
-        tr.appendChild(td);
+    const taskCols = [
+      { label: 'Record', width: 54, aliases: ['Record #', 'Record ID', 'RowID', 'Task ID'] },
+      { label: 'FMS Name', width: 95, aliases: ['FMS Name'] },
+      { label: 'Stage No', width: 55, aliases: ['Stage No', 'StageNo', 'Stage_No'] },
+      { label: 'Stage Name', width: 105, aliases: ['Stage Name'] },
+      { label: 'Doer Name', width: 88, aliases: ['Doer Name'] },
+      { label: 'Manager Code', width: 66, aliases: ['Manager Code'] },
+      { label: 'Manager Name', width: 86, aliases: ['Manager Name'] },
+      { label: 'Task Status', width: 77, aliases: ['Task Status'] },
+      { label: 'Planned', width: 98, aliases: ['Planned'] },
+      { label: 'Lead Time', width: 66, aliases: ['Lead Time'] },
+      { label: 'Forms', width: 62, forms: true },
+      { label: 'Actual', width: 98, aliases: ['Actual'] },
+      { label: 'KPIRecord Key', width: 110, aliases: ['KPI Record Key', 'KPIRecord Key'] },
+      { label: 'Year', width: 52, aliases: ['KPI Year', 'Year'] },
+      { label: 'Month', width: 52, aliases: ['KPI Month', 'Month'] },
+      { label: 'Day', width: 42, aliases: ['Day No', 'Day'] },
+      { label: 'Presence Factor', width: 76, aliases: ['Presence Factor'] },
+    ];
+    const kpi1Cols = [
+      { label: 'KPI01 Score', width: 145, aliases: ['KPI01 Score'] },
+      { label: 'KPI 1 Factored Score', width: 170, aliases: ['KPI 1 Factored Score'] },
+      { label: 'KPI 1 Task Status', width: 150, aliases: ['KPI 1 Task Status'] },
+    ];
+    const kpi2Cols = [
+      { label: "Total Day's Task", width: 135, aliases: ['Total Tasks'] },
+      { label: "Finished Day's Task", width: 145, aliases: ['Finished'] },
+      { label: 'Task Completion Rate', width: 145, aliases: ['Task Completion Rate'] },
+      { label: 'Task Completion Rate KPI Weightage', width: 185, aliases: ['Task Completion Rate KPI Weightage'] },
+      { label: 'Weighted Task Completion Rate Score', width: 190, aliases: ['Weighted Task Completion Rate Score'] },
+    ];
+
+    const layout = document.createElement('div');
+    layout.className = 'task360-merged-layout';
+    const panes = [
+      { key: 'task', title: 'Task Details & Generic KPI Fields', cols: taskCols, className: 'task360-pane task360-task-pane', width: 1280, tableWidth: 1280 },
+      { key: 'kpi1', title: 'KPI 1 · Delay', cols: kpi1Cols, className: 'task360-pane task360-kpi-pane task360-kpi1-pane', width: 390, tableWidth: 465 },
+      { key: 'kpi2', title: 'KPI 2 · Completion', cols: kpi2Cols, className: 'task360-pane task360-kpi-pane task360-kpi2-pane', width: 530, tableWidth: 800 },
+    ];
+
+    panes.forEach(pane => {
+      const paneEl = document.createElement('section');
+      paneEl.className = pane.className;
+      paneEl.dataset.pane = pane.key;
+      paneEl.style.width = `${pane.width}px`;
+
+      const title = document.createElement('div');
+      title.className = 'task360-pane-title';
+      title.textContent = pane.title;
+      paneEl.appendChild(title);
+
+      const viewport = document.createElement('div');
+      viewport.className = pane.key === 'task' ? 'task360-pane-viewport task360-task-viewport' : 'task360-pane-viewport task360-kpi-viewport';
+      viewport.setAttribute('aria-label', `${pane.title} columns`);
+
+      const table = document.createElement('table');
+      table.className = `task360-merged-table task360-${pane.key}-table`;
+      table.style.width = `${pane.tableWidth}px`;
+      table.setAttribute('aria-label', pane.title);
+
+      const colgroup = document.createElement('colgroup');
+      pane.cols.forEach(col => {
+        const c = document.createElement('col');
+        c.style.width = `${col.width}px`;
+        colgroup.appendChild(c);
       });
+      table.appendChild(colgroup);
 
-      // Add a Forms > Show button for every row with the form lookup keys.
-      // The shared stage_form.js click handler opens the resolved URL in a new tab.
-      const formsTd = document.createElement('td');
-      formsTd.className = 'forms-action-column';
-      const formRecordId = recordCol >= 0 ? getTableCellValue(row, headers[recordCol], recordCol) : '';
-      const formAppId = appCol >= 0 ? getTableCellValue(row, headers[appCol], appCol) : '';
-      const formStageNo = stageCol >= 0 ? getTableCellValue(row, headers[stageCol], stageCol) : '';
-      const formKeysAvailable = [formRecordId, formAppId, formStageNo]
-        .every(item => item != null && String(item).trim() !== '');
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      headerRow.className = 'task360-col-header-row';
+      pane.cols.forEach(col => {
+        const th = document.createElement('th');
+        th.scope = 'col';
+        th.textContent = col.label;
+        th.title = col.label;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
 
-      const formsButton = document.createElement('button');
-      formsButton.type = 'button';
-      formsButton.className = 'stage-form-show-button';
-      formsButton.textContent = 'Show';
-      if (formKeysAvailable) {
-        formsButton.dataset.stageFormLaunch = 'true';
-        formsButton.dataset.recordId = String(formRecordId).trim();
-        formsButton.dataset.appId = String(formAppId).trim();
-        formsButton.dataset.stageNo = String(formStageNo).trim();
-        formsButton.title = `Open form in a new tab · Record ${formRecordId} · ${formAppId} · ${formStageNo}`;
-        formsButton.setAttribute('aria-label', `Show form for record ${formRecordId}`);
-      } else {
-        formsButton.disabled = true;
-        formsButton.title = 'Cannot open form: Record #, App ID, or Stage No is missing.';
-        formsButton.setAttribute('aria-label', 'Form unavailable because row details are missing');
-      }
-      formsTd.appendChild(formsButton);
-      tr.appendChild(formsTd);
-      fragment.appendChild(tr);
+      const tbody = document.createElement('tbody');
+      const fragment = document.createDocumentFragment();
+      pageData.forEach((row, rowIndex) => {
+        const tr = document.createElement('tr');
+        tr.dataset.rowIndex = String(rowIndex);
+        pane.cols.forEach(col => {
+          const td = document.createElement('td');
+          if (col.forms) {
+            const recordId = readValue(row, 'Record #', 'Record ID', 'RowID', 'Task ID');
+            const appId = readValue(row, 'App ID', 'AppID', 'App_ID', 'Application ID');
+            const stageNo = readValue(row, 'Stage No', 'StageNo', 'Stage_No', 'Stage Number');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'stage-form-show-button';
+            button.textContent = 'Show';
+            if ([recordId, appId, stageNo].every(v => v != null && String(v).trim() !== '')) {
+              button.dataset.stageFormLaunch = 'true';
+              button.dataset.recordId = String(recordId).trim();
+              button.dataset.appId = String(appId).trim();
+              button.dataset.stageNo = String(stageNo).trim();
+              button.title = `Open stage form in a new tab · Record ${recordId} · ${appId} · ${stageNo}`;
+            } else {
+              button.disabled = true;
+              button.title = 'Cannot open form: Record #, App ID, or Stage No is missing.';
+            }
+            td.appendChild(button);
+          } else {
+            const value = readValue(row, ...(col.aliases || [col.label]));
+            td.textContent = displayValue(value);
+            if (normalizeHeaderKey(col.label) === 'taskstatus') {
+              const status = normalizeHeaderKey(value);
+              if (status.includes('finish') || status.includes('complete')) td.classList.add('cell-status--finished');
+              else if (status.includes('defer') || status.includes('delay') || status.includes('overdue')) td.classList.add('cell-status--deferred');
+              else td.classList.add('cell-status--pending');
+            }
+            if (value != null && String(value).length > 18) td.title = String(value);
+          }
+          tr.appendChild(td);
+        });
+        fragment.appendChild(tr);
+      });
+      tbody.appendChild(fragment);
+      table.append(thead, tbody);
+      viewport.appendChild(table);
+      paneEl.appendChild(viewport);
+      layout.appendChild(paneEl);
     });
-    tbody.appendChild(fragment);
-    table.append(thead, tbody);
-    container.appendChild(table);
+    container.appendChild(layout);
+
+    // Keep row heights shared across panes so each task stays aligned while KPI groups scroll horizontally.
+    const alignHeights = () => {
+      const paneElements = Array.from(layout.querySelectorAll('.task360-pane'));
+      if (!paneElements.length) return;
+      const headRows = paneElements.map(el => el.querySelector('thead tr')).filter(Boolean);
+      headRows.forEach(el => { el.style.height = 'auto'; });
+      const headerHeight = Math.max(0, ...headRows.map(el => el.getBoundingClientRect().height));
+      const zoomRaw = Number.parseFloat(getComputedStyle(document.documentElement).zoom || '1');
+      const zoomScale = zoomRaw > 1 ? zoomRaw / 100 : (zoomRaw || 1);
+      if (headerHeight) headRows.forEach(el => { el.style.height = `${Math.ceil(headerHeight / zoomScale)}px`; });
+
+      const rowSets = paneElements.map(el => Array.from(el.querySelectorAll('tbody tr')));
+      rowSets.forEach(set => set.forEach(el => { el.style.height = 'auto'; }));
+      const maxRows = Math.max(0, ...rowSets.map(set => set.length));
+      for (let i = 0; i < maxRows; i++) {
+        const heights = rowSets.map(set => set[i]).filter(Boolean).map(el => el.getBoundingClientRect().height);
+        if (!heights.length) continue;
+        const cssHeight = Math.ceil(Math.max(...heights) / zoomScale);
+        rowSets.forEach(set => { if (set[i]) set[i].style.height = `${cssHeight}px`; });
+      }
+    };
+    window.requestAnimationFrame(alignHeights);
+    if (!window.__task360MergedResizeBound) {
+      window.__task360MergedResizeBound = true;
+      window.addEventListener('resize', () => {
+        const active = document.querySelector('.task360-merged-layout');
+        if (active) window.requestAnimationFrame(() => {
+          const paneElements = Array.from(active.querySelectorAll('.task360-pane'));
+          const headRows = paneElements.map(el => el.querySelector('thead tr')).filter(Boolean);
+          headRows.forEach(el => { el.style.height = 'auto'; });
+          const zoomRaw = Number.parseFloat(getComputedStyle(document.documentElement).zoom || '1');
+          const zoomScale = zoomRaw > 1 ? zoomRaw / 100 : (zoomRaw || 1);
+          const headerHeight = Math.max(0, ...headRows.map(el => el.getBoundingClientRect().height));
+          if (headerHeight) headRows.forEach(el => { el.style.height = `${Math.ceil(headerHeight / zoomScale)}px`; });
+          const sets = paneElements.map(el => Array.from(el.querySelectorAll('tbody tr')));
+          sets.forEach(set => set.forEach(el => { el.style.height = 'auto'; }));
+          for (let i = 0; i < Math.max(0, ...sets.map(set => set.length)); i++) {
+            const hs = sets.map(set => set[i]).filter(Boolean).map(el => el.getBoundingClientRect().height);
+            if (hs.length) sets.forEach(set => { if (set[i]) set[i].style.height = `${Math.ceil(Math.max(...hs) / zoomScale)}px`; });
+          }
+        });
+      }, { passive: true });
+    }
+    // One hover highlights the corresponding task across all three panes.
+    layout.querySelectorAll('tbody tr').forEach(tr => {
+      tr.addEventListener('mouseenter', () => layout.querySelectorAll(`tbody tr[data-row-index="${tr.dataset.rowIndex}"]`).forEach(peer => peer.classList.add('task360-row-hover')));
+      tr.addEventListener('mouseleave', () => layout.querySelectorAll(`tbody tr[data-row-index="${tr.dataset.rowIndex}"]`).forEach(peer => peer.classList.remove('task360-row-hover')));
+    });
   }
 
   const pInput = document.getElementById('page-input');
