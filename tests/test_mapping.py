@@ -63,6 +63,17 @@ class SqlRowMappingTests(unittest.TestCase):
         self.assertEqual(row[10:13], [1, 1, 80])
         self.assertEqual(row[14], 0.8)
 
+    def test_kpi2_combined_payload_appends_kpi1_and_manager_fields(self):
+        record = dict(self.sample, ManagerCode="0017")
+        row = kpi2_row(record, _group_summaries([record]))
+        self.assertEqual(len(row), len(KPI2_HEADERS))
+        appended = row[-6:]
+        self.assertEqual(appended, [1.0, "0017", 75, 0.75, "Done-Delayed", 1])
+        self.assertEqual(KPI2_HEADERS[-6:], [
+            "Lead Time", "Manager Code", "KPI01 Score", "KPI 1 Factored Score",
+            "KPI 1 Task Status", "Task Completion Rate KPI Weightage",
+        ])
+
     def test_kpi_status_mapping(self):
         self.assertEqual(kpi1_status(self.sample), "Done-Delayed")
         self.assertEqual(kpi2_status(self.sample), "Finished")
