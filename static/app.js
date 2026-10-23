@@ -86,12 +86,13 @@ let statusDoughnutChartInstance = null;
 
 const DRILL = { status: null, fms: null, stage: null };
 const TOP_FILTERS = {};
+let SCOREBOARD_STATUS_FILTER = null;
 window.task360GetSharedFilters = () => Object.fromEntries(
   Object.entries(TOP_FILTERS).filter(([, values]) => values && values.size).map(([key, values]) => [key, Array.from(values)])
 );
 function notifySharedFiltersChanged() {
   window.dispatchEvent(new CustomEvent('task360:shared-filters-changed', {
-    detail: { filters: window.task360GetSharedFilters() }
+    detail: { filters: window.task360GetSharedFilters(), scoreboardStatus: SCOREBOARD_STATUS_FILTER }
   }));
 }
 let OPEN_TOP_FOR = null;
@@ -280,8 +281,36 @@ function getStatusBucket(row) {
   return 'awaited';
 }
 
+function parseTaskDateValue(value) {
+  if (value == null || String(value).trim() === '') return null;
+  const text = String(value).trim();
+  const native = new Date(text);
+  if (!Number.isNaN(native.getTime())) return native;
+  const match = text.match(/^(\d{1,2})[- ]([A-Za-z]{3,9})[- ](\d{4})(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!match) return null;
+  const months = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+  const month = months[match[2].slice(0,3).toLowerCase()];
+  if (month == null) return null;
+  const result = new Date(Number(match[3]), month, Number(match[1]), Number(match[4] || 0), Number(match[5] || 0), Number(match[6] || 0));
+  return Number.isNaN(result.getTime()) ? null : result;
+}
+
+// Generic Task Status is intentionally separate from KPI 1 / KPI 2 status values.
+// Finished or Deferred is Complete; an open Awaited task is Planned until its
+// planned timestamp passes, after which it is Pending.
+function getGenericTaskStatus(row) {
+  const rawIdx = FILTER_COLUMNS.RAW_STATUS;
+  const statusIdx = FILTER_COLUMNS.TASK_STATUS;
+  const status = String((rawIdx != null ? row[rawIdx] : '') || (statusIdx != null ? row[statusIdx] : '') || '').trim().toLowerCase();
+  if (['finish', 'complet', 'defer', 'done', 'closed', 'cancel', 'missed', 'overdue', 'not done', 'not complet', 'unfinished', 'uncompleted'].some(term => status.includes(term))) return 'Complete';
+  const plannedIdx = FILTER_COLUMNS.PLANNED;
+  const planned = plannedIdx == null ? null : parseTaskDateValue(row[plannedIdx]);
+  return planned && Date.now() > planned.getTime() ? 'Pending' : 'Planned';
+}
+
 function computeFilteredData(options = {}) {
   const ignoreTaskStatusFilter = Boolean(options.ignoreTaskStatusFilter);
+  const ignoreScoreboardStatus = Boolean(options.ignoreScoreboardStatus);
   const ignoreDrills = Boolean(options.ignoreDrills);
   let data = ALL_DATA.slice();
   for (const key in TOP_FILTERS) {
@@ -293,6 +322,9 @@ function computeFilteredData(options = {}) {
         data = data.filter(r => selected.has(String(r[idx] ?? '').trim()));
       }
     }
+  }
+  if (!ignoreScoreboardStatus && SCOREBOARD_STATUS_FILTER) {
+    data = data.filter(row => getGenericTaskStatus(row) === SCOREBOARD_STATUS_FILTER);
   }
   if (!ignoreDrills && DRILL.status) {
     data = data.filter(r => {
@@ -325,7 +357,7 @@ function setKPI(a, b, c, d) {
   const kA = document.getElementById('kpi-avg-delay'); if(kA) kA.textContent = d; 
 }
 
-function resetTopFilters() { for (const k in TOP_FILTERS) delete TOP_FILTERS[k]; }
+function resetTopFilters() { for (const k in TOP_FILTERS) delete TOP_FILTERS[k]; SCOREBOARD_STATUS_FILTER = null; }
 
 function renderTopFilters(headers, data) {
   const wrap = document.getElementById('filters-below-views');
@@ -336,7 +368,7 @@ function renderTopFilters(headers, data) {
     { key: 'KPI_MONTH',   label: 'KPI Month'   }, { key: 'WEEK_NO',     label: 'Week No'     },
     { key: 'DAY_NO',      label: 'Day No'      }, { key: 'DOER',        label: 'Doer'        },
     { key: 'FMS',         label: 'FMS'         }, { key: 'STAGE',       label: 'Stage'       },
-    { key: 'TASK_STATUS', label: 'Task Status' }
+    { key: 'TASK_STATUS', label: 'KPI 2 Status' }
   ];
 
   const optionsMap = {};
@@ -712,12 +744,14 @@ function renderTable(data) {
             }
             td.appendChild(button);
           } else {
-            const value = readValue(row, ...(col.aliases || [col.label]));
+            const rawValue = readValue(row, ...(col.aliases || [col.label]));
+            const isGenericStatus = normalizeHeaderKey(col.label) === 'taskstatus';
+            const value = isGenericStatus ? getGenericTaskStatus(row) : rawValue;
             td.textContent = displayValue(value);
-            if (normalizeHeaderKey(col.label) === 'taskstatus') {
+            if (isGenericStatus) {
               const status = normalizeHeaderKey(value);
-              if (status.includes('finish') || status.includes('complete')) td.classList.add('cell-status--finished');
-              else if (status.includes('defer') || status.includes('delay') || status.includes('overdue')) td.classList.add('cell-status--deferred');
+              if (status === 'complete') td.classList.add('cell-status--finished');
+              else if (status === 'pending') td.classList.add('cell-status--deferred');
               else td.classList.add('cell-status--pending');
             }
             if (value != null && String(value).length > 18) td.title = String(value);
@@ -820,19 +854,17 @@ function renderDashboardOnly() {
 function renderTaskStatusScoreboard(baseRows) {
   const wrap = document.getElementById('task-status-scoreboard');
   if (!wrap) return;
-  const statusIndex = FILTER_COLUMNS.TASK_STATUS;
   const counts = { Planned: 0, Pending: 0, Complete: 0 };
   (baseRows || []).forEach(row => {
-    const status = String(statusIndex == null ? '' : row[statusIndex] ?? '').trim();
+    const status = getGenericTaskStatus(row);
     if (Object.prototype.hasOwnProperty.call(counts, status)) counts[status]++;
   });
-  const selected = TOP_FILTERS.TASK_STATUS || new Set();
   Object.entries({ Planned: 'planned', Pending: 'pending', Complete: 'complete' }).forEach(([status, suffix]) => {
     const count = document.getElementById(`status-count-${suffix}`);
     if (count) count.textContent = (counts[status] || 0).toLocaleString();
     const button = wrap.querySelector(`[data-task-status-score="${status}"]`);
     if (button) {
-      const active = selected.has(status);
+      const active = SCOREBOARD_STATUS_FILTER === status;
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', String(active));
     }
@@ -840,12 +872,7 @@ function renderTaskStatusScoreboard(baseRows) {
 }
 
 function setTaskStatusScoreFilter(status) {
-  const current = TOP_FILTERS.TASK_STATUS || new Set();
-  if (current.size === 1 && current.has(status)) delete TOP_FILTERS.TASK_STATUS;
-  else TOP_FILTERS.TASK_STATUS = new Set([status]);
-  const filterButton = document.querySelector('.filter-chip-btn[data-top-key="TASK_STATUS"]');
-  const badge = filterButton?.querySelector('.filter-chip-count');
-  if (badge) badge.textContent = TOP_FILTERS.TASK_STATUS?.size || 0;
+  SCOREBOARD_STATUS_FILTER = SCOREBOARD_STATUS_FILTER === status ? null : status;
   closeAnyTopPopover();
   DRILL.status = null;
   currentPage = 1;
@@ -868,7 +895,7 @@ function renderAll() {
   renderTable(data);
   renderKPIs(data);
   try { renderCharts(); } catch (error) { console.error('Chart rendering failed:', error); }
-  renderTaskStatusScoreboard(computeFilteredData({ ignoreTaskStatusFilter: true, ignoreDrills: true }));
+  renderTaskStatusScoreboard(computeFilteredData({ ignoreTaskStatusFilter: true, ignoreScoreboardStatus: true, ignoreDrills: true }));
   notifySharedFiltersChanged();
 }
 
