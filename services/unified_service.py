@@ -18,9 +18,11 @@ KPI1_HEADERS = [
 KPI2_HEADERS = [
     "Record #", "FMS Name", "Stage Name", "Planned", "Doer Name", "Actual",
     "Task Status", "KPI Month", "Week No", "Day No", "Total Tasks", "Finished",
-    "Task Completion Rate", "Task Completion Rate KPI Weightage",
+    "Task Completion Rate", "Presence Factor",
     "Weighted Task Completion Rate Score", "KPI Year", "App ID", "Stage No", "Doer Code",
     "KPI Record Key", "Manager Name", "Manager Chain", "Raw KPI02 Status",
+    "Lead Time", "Manager Code", "KPI01 Score", "KPI 1 Factored Score",
+    "KPI 1 Task Status", "Task Completion Rate KPI Weightage",
 ]
 
 KPI2_FILTER_INDEXES = {
@@ -286,6 +288,12 @@ def kpi2_row(record: dict[str, Any], summaries: dict[tuple[str, ...], dict[str, 
         record.get("StageNo") or "", record.get("DoerCode") or "",
         record.get("KPIRecordKey") or "", record.get("ManagerName") or "",
         record.get("ManagerChain") or "", clean_null(record.get("TaskStatus_KPI02")) or "",
+        round(numeric(record.get("LeadTimeMins")) / 60.0, 4),
+        clean_null(record.get("ManagerCode")) or "",
+        clean_null(record.get("KPI01_Score")),
+        clean_null(record.get("KPI01_ScoreFactored")),
+        kpi1_status(record),
+        clean_null(record.get("PresenceFactor")),
     ]
 
 
