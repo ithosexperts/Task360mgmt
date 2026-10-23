@@ -609,9 +609,9 @@ function renderTable(data) {
       { label: 'Presence Factor', width: 76, aliases: ['Presence Factor'] },
     ];
     const kpi1Cols = [
-      { label: 'KPI01 Score', width: 145, aliases: ['KPI01 Score'] },
-      { label: 'KPI 1 Factored Score', width: 170, aliases: ['KPI 1 Factored Score'] },
-      { label: 'KPI 1 Task Status', width: 150, aliases: ['KPI 1 Task Status'] },
+      { label: 'KPI01 Score', width: 180, aliases: ['KPI01 Score'] },
+      { label: 'KPI 1 Factored Score', width: 220, aliases: ['KPI 1 Factored Score'] },
+      { label: 'KPI 1 Task Status', width: 220, aliases: ['KPI 1 Task Status'] },
     ];
     const kpi2Cols = [
       { label: "Total Day's Task", width: 135, aliases: ['Total Tasks'] },
@@ -625,7 +625,7 @@ function renderTable(data) {
     layout.className = 'task360-merged-layout';
     const panes = [
       { key: 'task', title: 'Task Details & Generic KPI Fields', cols: taskCols, className: 'task360-pane task360-task-pane', width: 1280, tableWidth: 1280 },
-      { key: 'kpi1', title: 'KPI 1 · Delay', cols: kpi1Cols, className: 'task360-pane task360-kpi-pane task360-kpi1-pane', width: 390, tableWidth: 465 },
+      { key: 'kpi1', title: 'KPI 1 · Delay', cols: kpi1Cols, className: 'task360-pane task360-kpi-pane task360-kpi1-pane', width: 530, tableWidth: 620 },
       { key: 'kpi2', title: 'KPI 2 · Completion', cols: kpi2Cols, className: 'task360-pane task360-kpi-pane task360-kpi2-pane', width: 530, tableWidth: 800 },
     ];
 
