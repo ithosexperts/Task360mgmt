@@ -24,9 +24,12 @@
   --success: #2F7F7F;
   --danger: #8A3D70;
   --warning: var(--brand-purple);
-  --chart-green: var(--brand-teal);
-  --chart-red: var(--brand-purple);
-  --chart-blue: var(--brand-indigo);
+  --chart-green: #73C8A9;   /* pastel mint: finished / on-time */
+  --chart-red: #F19A7E;     /* pastel coral: deferred / delayed */
+  --chart-blue: #8FB5FF;    /* pastel sky blue: pending / awaited */
+  --chart-purple: #ADA5F7;  /* secondary category */
+  --chart-teal: #A4DAD5;    /* secondary category */
+  --chart-pink: #E9B8D0;    /* secondary category */
 }
 
 body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text);min-height:100vh}
@@ -397,7 +400,7 @@ header.card {
 /* Shared Planned / Pending / Complete scoreboard above the aligned task panes. */
 .task360-status-scoreboard {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   width: 100%;
   margin: 4px 0 12px;
@@ -424,9 +427,10 @@ header.card {
 .task360-status-score-card.active { border-color: rgba(78,91,180,.72); box-shadow: 0 0 0 3px rgba(131,153,255,.18), 0 12px 26px rgba(64,75,143,.13), inset 0 1px 0 #fff; }
 .task360-status-score-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 14px; }
 .task360-status-score-icon svg { width: 24px; height: 24px; }
+.task360-status-all .task360-status-score-icon { color: #7168C7; background: linear-gradient(135deg, rgba(173,165,247,.44), rgba(219,216,255,.34)); }
 .task360-status-planned .task360-status-score-icon { color: #5870cb; background: linear-gradient(135deg, rgba(153,176,255,.42), rgba(194,210,255,.32)); }
-.task360-status-pending .task360-status-score-icon { color: #ba704d; background: linear-gradient(135deg, rgba(255,190,154,.48), rgba(255,220,197,.34)); }
-.task360-status-complete .task360-status-score-icon { color: #248e7b; background: linear-gradient(135deg, rgba(133,224,199,.48), rgba(188,245,225,.34)); }
+.task360-status-pending .task360-status-score-icon { color: #BA704D; background: linear-gradient(135deg, rgba(241,154,126,.42), rgba(255,220,197,.34)); }
+.task360-status-complete .task360-status-score-icon { color: #248E7B; background: linear-gradient(135deg, rgba(115,200,169,.48), rgba(188,245,225,.34)); }
 .task360-status-score-copy { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .task360-status-score-label { font-size: .82rem; font-weight: 800; letter-spacing: .01em; }
 .task360-status-score-copy strong { font-size: 1.65rem; line-height: 1.1; font-weight: 850; color: #202a51; font-variant-numeric: tabular-nums; }
