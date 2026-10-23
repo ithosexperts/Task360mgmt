@@ -85,7 +85,15 @@ let fmsBarChartInstance = null;
 let statusDoughnutChartInstance = null;
 
 const DRILL = { status: null, fms: null, stage: null };
-const TOP_FILTERS = {};              
+const TOP_FILTERS = {};
+window.task360GetSharedFilters = () => Object.fromEntries(
+  Object.entries(TOP_FILTERS).filter(([, values]) => values && values.size).map(([key, values]) => [key, Array.from(values)])
+);
+function notifySharedFiltersChanged() {
+  window.dispatchEvent(new CustomEvent('task360:shared-filters-changed', {
+    detail: { filters: window.task360GetSharedFilters() }
+  }));
+}
 let OPEN_TOP_FOR = null;
 let CURRENT_TOP_WORKSET = new Set();
 let currentPage = 1;
@@ -216,6 +224,7 @@ async function refreshData() {
     
     currentPage = 1;
     handlePayload(payload);
+    if (typeof window.refreshKpi1Analytics === 'function') window.refreshKpi1Analytics(false);
   } catch (error) { handleError(error); }
 }
 
@@ -263,16 +272,20 @@ function deriveDefaultPartitionName() {
 }
 
 function getStatusBucket(row) {
-  const sIdx = FILTER_COLUMNS.TASK_STATUS;
-  const status = String(row[sIdx] || '').toLowerCase().trim();
-  if (status.includes('finished')) return 'finished';
-  if (status.includes('deferred')) return 'deferred';
+  const rawIdx = FILTER_COLUMNS.RAW_STATUS;
+  const visibleIdx = FILTER_COLUMNS.TASK_STATUS;
+  const status = String((rawIdx != null ? row[rawIdx] : '') || (visibleIdx != null ? row[visibleIdx] : '') || '').toLowerCase().trim();
+  if (['defer', 'missed', 'overdue', 'not done', 'not complet', 'unfinished', 'uncompleted', 'cancel'].some(term => status.includes(term))) return 'deferred';
+  if (status.includes('finish') || status.includes('complet') || status.includes('done') || status.includes('closed')) return 'finished';
   return 'awaited';
 }
 
-function computeFilteredData() {
+function computeFilteredData(options = {}) {
+  const ignoreTaskStatusFilter = Boolean(options.ignoreTaskStatusFilter);
+  const ignoreDrills = Boolean(options.ignoreDrills);
   let data = ALL_DATA.slice();
   for (const key in TOP_FILTERS) {
+    if (ignoreTaskStatusFilter && key === 'TASK_STATUS') continue;
     const selected = TOP_FILTERS[key];
     if (selected && selected.size) {
       const idx = FILTER_COLUMNS[key];
@@ -281,7 +294,7 @@ function computeFilteredData() {
       }
     }
   }
-  if (DRILL.status) {
+  if (!ignoreDrills && DRILL.status) {
     data = data.filter(r => {
       const b = getStatusBucket(r);
       return (DRILL.status === 'finished' && b === 'finished') || 
@@ -289,19 +302,18 @@ function computeFilteredData() {
              (DRILL.status === 'awaited' && b === 'awaited');
     });
   }
-  if (DRILL.fms) { data = data.filter(r => String(r[FILTER_COLUMNS.FMS] || '').trim() === DRILL.fms); }
-  if (DRILL.stage) { data = data.filter(r => String(r[FILTER_COLUMNS.STAGE] || '').trim() === DRILL.stage); }
+  if (!ignoreDrills && DRILL.fms) { data = data.filter(r => String(r[FILTER_COLUMNS.FMS] || '').trim() === DRILL.fms); }
+  if (!ignoreDrills && DRILL.stage) { data = data.filter(r => String(r[FILTER_COLUMNS.STAGE] || '').trim() === DRILL.stage); }
   return data;
 }
 
 function renderKPIs(data) {
   if (!Object.keys(FILTER_COLUMNS).length) { setKPI('N/A', 'N/A', 'N/A', 'N/A'); return; }
-  const idxStatus = FILTER_COLUMNS.TASK_STATUS;
   let deferredCount = 0, finishedCount = 0;
   data.forEach(r => {
-    const st = String(r[idxStatus] || '').toLowerCase().trim();
-    if (st.includes('deferred')) deferredCount++;
-    else if (st.includes('finished')) finishedCount++;
+    const bucket = getStatusBucket(r);
+    if (bucket === 'deferred') deferredCount++;
+    else if (bucket === 'finished') finishedCount++;
   });
   setKPI(deferredCount.toLocaleString(), finishedCount.toLocaleString(), data.length.toLocaleString(), '0.00');
 }
@@ -374,7 +386,7 @@ function toggleTopPopover(key, triggerBtn, options) {
     TOP_FILTERS[key] = new Set(CURRENT_TOP_WORKSET);
     const badge = triggerBtn.querySelector('.filter-chip-count');
     if(badge) badge.textContent = TOP_FILTERS[key].size || 0;
-    closeAnyTopPopover(); currentPage = 1; renderDashboardOnly(); renderTable(computeFilteredData()); 
+    closeAnyTopPopover(); currentPage = 1; clearDrill(); renderAll(); 
   };
   
   foot.appendChild(btnCancel); foot.appendChild(btnApply); pop.appendChild(foot); document.body.appendChild(pop);
@@ -609,11 +621,12 @@ function renderTable(data) {
       { label: 'Presence Factor', width: 76, aliases: ['Presence Factor'] },
     ];
     const kpi1Cols = [
-      { label: 'KPI01 Score', width: 180, aliases: ['KPI01 Score'] },
-      { label: 'KPI 1 Factored Score', width: 220, aliases: ['KPI 1 Factored Score'] },
-      { label: 'KPI 1 Task Status', width: 220, aliases: ['KPI 1 Task Status'] },
+      { label: 'KPI01 Score', width: 145, aliases: ['KPI01 Score'] },
+      { label: 'KPI 1 Factored Score', width: 170, aliases: ['KPI 1 Factored Score'] },
+      { label: 'KPI 1 Task Status', width: 150, aliases: ['KPI 1 Task Status'] },
     ];
     const kpi2Cols = [
+      { label: 'KPI 2 Task Status', width: 150, aliases: ['Task Status'] },
       { label: "Total Day's Task", width: 135, aliases: ['Total Tasks'] },
       { label: "Finished Day's Task", width: 145, aliases: ['Finished'] },
       { label: 'Task Completion Rate', width: 145, aliases: ['Task Completion Rate'] },
@@ -625,15 +638,18 @@ function renderTable(data) {
     layout.className = 'task360-merged-layout';
     const panes = [
       { key: 'task', title: 'Task Details & Generic KPI Fields', cols: taskCols, className: 'task360-pane task360-task-pane', width: 1280, tableWidth: 1280 },
-      { key: 'kpi1', title: 'KPI 1 · Delay', cols: kpi1Cols, className: 'task360-pane task360-kpi-pane task360-kpi1-pane', width: 530, tableWidth: 620 },
-      { key: 'kpi2', title: 'KPI 2 · Completion', cols: kpi2Cols, className: 'task360-pane task360-kpi-pane task360-kpi2-pane', width: 530, tableWidth: 800 },
+      { key: 'kpi1', title: 'KPI 1 · Delay', cols: kpi1Cols, className: 'task360-pane task360-kpi-pane task360-kpi1-pane', width: 390, tableWidth: 465 },
+      { key: 'kpi2', title: 'KPI 2 · Completion', cols: kpi2Cols, className: 'task360-pane task360-kpi-pane task360-kpi2-pane', width: 530, tableWidth: 950 },
     ];
 
     panes.forEach(pane => {
       const paneEl = document.createElement('section');
       paneEl.className = pane.className;
       paneEl.dataset.pane = pane.key;
-      paneEl.style.width = `${pane.width}px`;
+      // KPI 2 takes the remaining horizontal space in the table layout.
+      // Task details and KPI 1 remain fixed-width; KPI 2 expands to the end
+      // of the parent card while its own columns can still scroll internally.
+      paneEl.style.width = pane.key === 'kpi2' ? 'auto' : `${pane.width}px`;
 
       const title = document.createElement('div');
       title.className = 'task360-pane-title';
@@ -801,6 +817,50 @@ function renderDashboardOnly() {
   renderKPIs(data);
   try { renderCharts(); } catch (error) { console.error('Chart rendering failed:', error); }
 }
+function renderTaskStatusScoreboard(baseRows) {
+  const wrap = document.getElementById('task-status-scoreboard');
+  if (!wrap) return;
+  const statusIndex = FILTER_COLUMNS.TASK_STATUS;
+  const counts = { Planned: 0, Pending: 0, Complete: 0 };
+  (baseRows || []).forEach(row => {
+    const status = String(statusIndex == null ? '' : row[statusIndex] ?? '').trim();
+    if (Object.prototype.hasOwnProperty.call(counts, status)) counts[status]++;
+  });
+  const selected = TOP_FILTERS.TASK_STATUS || new Set();
+  Object.entries({ Planned: 'planned', Pending: 'pending', Complete: 'complete' }).forEach(([status, suffix]) => {
+    const count = document.getElementById(`status-count-${suffix}`);
+    if (count) count.textContent = (counts[status] || 0).toLocaleString();
+    const button = wrap.querySelector(`[data-task-status-score="${status}"]`);
+    if (button) {
+      const active = selected.has(status);
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    }
+  });
+}
+
+function setTaskStatusScoreFilter(status) {
+  const current = TOP_FILTERS.TASK_STATUS || new Set();
+  if (current.size === 1 && current.has(status)) delete TOP_FILTERS.TASK_STATUS;
+  else TOP_FILTERS.TASK_STATUS = new Set([status]);
+  const filterButton = document.querySelector('.filter-chip-btn[data-top-key="TASK_STATUS"]');
+  const badge = filterButton?.querySelector('.filter-chip-count');
+  if (badge) badge.textContent = TOP_FILTERS.TASK_STATUS?.size || 0;
+  closeAnyTopPopover();
+  DRILL.status = null;
+  currentPage = 1;
+  renderAll();
+}
+
+function bindTaskStatusScoreboard() {
+  const wrap = document.getElementById('task-status-scoreboard');
+  if (!wrap || wrap.dataset.bound === 'true') return;
+  wrap.dataset.bound = 'true';
+  wrap.querySelectorAll('[data-task-status-score]').forEach(button => {
+    button.addEventListener('click', () => setTaskStatusScoreFilter(button.dataset.taskStatusScore));
+  });
+}
+
 function renderAll() {
   updateBreadcrumb();
   const data = computeFilteredData();
@@ -808,6 +868,8 @@ function renderAll() {
   renderTable(data);
   renderKPIs(data);
   try { renderCharts(); } catch (error) { console.error('Chart rendering failed:', error); }
+  renderTaskStatusScoreboard(computeFilteredData({ ignoreTaskStatusFilter: true, ignoreDrills: true }));
+  notifySharedFiltersChanged();
 }
 
 function handleError(error) {
@@ -825,6 +887,7 @@ function handleError(error) {
 }
 
 window.onload = function() {
+  bindTaskStatusScoreboard();
   const attach = (id, event, fn) => { const el = document.getElementById(id); if(el) el.addEventListener(event, fn); };
 
   const urlParams = new URLSearchParams(window.location.search);
