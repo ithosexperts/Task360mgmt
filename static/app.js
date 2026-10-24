@@ -500,6 +500,10 @@ function toggleTopPopover(key, triggerBtn, options) {
 }
 
 function closeAnyTopPopover() {
+  // Close KPI 1's popover too, so only one filter menu can be open at a time.
+  if (typeof window.task360CloseKpi1FilterPopover === 'function') {
+    window.task360CloseKpi1FilterPopover();
+  }
   const pop = document.querySelector('.multi-pop');
   if (pop) {
     if (pop._filterPopoverScroll) window.removeEventListener('scroll', pop._filterPopoverScroll, true);
@@ -508,6 +512,24 @@ function closeAnyTopPopover() {
   }
   OPEN_TOP_FOR = null; CURRENT_TOP_WORKSET = new Set();
   document.querySelectorAll('.filter-chip-btn.active').forEach(b => b.classList.remove('active'));
+}
+
+// Shared close hook used by the KPI 1 filter module.
+window.task360CloseSharedFilterPopover = closeAnyTopPopover;
+
+// A click anywhere outside all filter buttons/popovers closes every open menu.
+if (!window.__task360GlobalFilterDismissBound) {
+  document.addEventListener('click', event => {
+    const target = event.target;
+    if (!target || typeof target.closest !== 'function') return;
+    if (target.closest('.multi-pop, .kpi1-multi-pop')) return;
+    if (target.closest('.filter-chip-btn, .kpi1-filter-chip-btn')) return;
+    closeAnyTopPopover();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeAnyTopPopover();
+  });
+  window.__task360GlobalFilterDismissBound = true;
 }
 
 function aggregateByKey(data, keyIndex) {
