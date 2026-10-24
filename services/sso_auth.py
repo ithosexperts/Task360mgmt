@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import html
 import os
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -19,7 +20,10 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from services.api_service import fetch_table_filtered, set_request_api_base, reset_request_api_base
+from services.api_service import (
+    fetch_table_filtered, set_request_api_base, reset_request_api_base,
+    set_request_api_token, reset_request_api_token,
+)
 from services.employee_service import read_employee_master, find_employee
 
 PORTAL_ISSUER = "one-portal"
@@ -67,7 +71,7 @@ def _decode_ticket(ticket: str) -> dict[str, Any]:
         return jwt.decode(
             ticket, _secret(), algorithms=[ALGORITHM], issuer=PORTAL_ISSUER,
             audience=TICKET_AUDIENCE,
-            options={"require": ["exp", "iat", "jti", "employee_code", "portal_session_id"]},
+            options={"require": ["exp", "iat", "jti", "employee_code", "portal_session_id", "portal_access_token"]},
             leeway=3,
         )
     except jwt.ExpiredSignatureError as exc:
@@ -98,6 +102,50 @@ _replay_store = _ReplayStore()
 _SESSION_CACHE: dict[str, tuple[float, bool]] = {}
 _SESSION_CACHE_LOCK = threading.Lock()
 _SESSION_CACHE_SECONDS = 8
+# Keep the One Portal bearer token server-side only. It is not put into the
+# browser cookie; Render runs one worker by default, and a fresh launch restores
+# this cache after a service restart.
+_PORTAL_TOKEN_CACHE: dict[str, tuple[float, str]] = {}
+_PORTAL_TOKEN_CACHE_LOCK = threading.Lock()
+
+
+def _key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value or "").casefold())
+
+
+def _session_key(value: Any) -> str:
+    return re.sub(r"[^a-f0-9]", "", str(value or "").casefold())
+
+
+def _portal_token_ttl(token: str, fallback_seconds: int) -> int:
+    """Read expiry only to bound the in-memory cache; ticket signature is verified first."""
+    try:
+        claims = jwt.decode(token, options={"verify_signature": False, "verify_exp": False, "verify_aud": False})
+        expiry = int(claims.get("exp") or 0)
+        if expiry:
+            return max(0, min(fallback_seconds, expiry - int(time.time())))
+    except Exception:
+        pass
+    return max(0, fallback_seconds)
+
+
+def _store_portal_token(session_id: str, token: str, fallback_seconds: int) -> None:
+    ttl = _portal_token_ttl(token, fallback_seconds)
+    if ttl <= 0:
+        raise SsoError("The One Portal access token has expired. Reopen Task 360 from One Portal.")
+    with _PORTAL_TOKEN_CACHE_LOCK:
+        _PORTAL_TOKEN_CACHE[session_id] = (time.monotonic() + ttl, token)
+
+
+def _get_portal_token(session_id: str) -> str | None:
+    with _PORTAL_TOKEN_CACHE_LOCK:
+        entry = _PORTAL_TOKEN_CACHE.get(session_id)
+        if not entry:
+            return None
+        if entry[0] <= time.monotonic():
+            _PORTAL_TOKEN_CACHE.pop(session_id, None)
+            return None
+        return entry[1]
 
 
 def _fetch_active_portal_session(session_id: str, employee_code: str) -> bool:
@@ -110,9 +158,10 @@ def _fetch_active_portal_session(session_id: str, employee_code: str) -> bool:
         rows = fetch_table_filtered("TM_Login_Sessions", {"session_id": session_id})
     except Exception as exc:
         raise SsoError("One Portal session validation service is temporarily unavailable.", 503) from exc
-    row = next((r for r in rows if str(_pick(r, "session_id", "SessionID") or "").strip() == session_id), None)
+    session_key = _session_key(session_id)
+    row = next((r for r in rows if _session_key(_pick(r, "session_id", "SessionID", "Session ID")) == session_key), None)
     status = str(_pick(row, "Status", "status") or "").strip().casefold() if row else ""
-    row_code = str(_pick(row, "EmployeeCode", "employee_code") or "").strip()
+    row_code = str(_pick(row, "EmployeeCode", "employee_code", "Employee Code") or "").strip()
     logout_raw = _pick(row, "LogoutTime", "logout_time") if row else None
     expiry_raw = _pick(row, "ExpiryTime", "expiry_time") if row else None
     expiry_ok = True
@@ -128,7 +177,7 @@ def _fetch_active_portal_session(session_id: str, employee_code: str) -> bool:
             # of an expired session; the signed cookie still has its own expiry.
             expiry_ok = True
     logout_is_set = logout_raw is not None and str(logout_raw).strip().casefold() not in {"", "none", "null", "0"}
-    is_active = bool(row and status == "active" and not logout_is_set and expiry_ok and (not row_code or row_code.casefold() == employee_code.casefold()))
+    is_active = bool(row and status in {"active", "1", "true", "y", "yes"} and not logout_is_set and expiry_ok and (not row_code or row_code.strip().casefold() == employee_code.strip().casefold()))
     with _SESSION_CACHE_LOCK:
         _SESSION_CACHE[session_id] = (now, is_active)
     return is_active
@@ -164,10 +213,12 @@ async def launch_from_one_portal(request: Request):
             raise SsoError("This launch ticket has already been used. Reopen Task 360 from One Portal.")
         employee_code = str(claims.get("employee_code") or "").strip()
         portal_session_id = str(claims.get("portal_session_id") or "").strip()
-        if not employee_code or not portal_session_id:
-            raise SsoError("Launch ticket is incomplete.")
+        portal_access_token = str(claims.get("portal_access_token") or "").strip()
+        if not employee_code or not portal_session_id or not portal_access_token:
+            raise SsoError("Launch ticket is incomplete. Sign in again to One Portal and reopen Task 360.")
         api_base = _database_api_base(claims.get("target_database"))
         api_context = set_request_api_base(api_base)
+        token_context = set_request_api_token(portal_access_token)
         try:
             if not _fetch_active_portal_session(portal_session_id, employee_code):
                 raise SsoError("Your One Portal session is no longer active. Sign in again to One Portal.")
@@ -176,8 +227,10 @@ async def launch_from_one_portal(request: Request):
             if not find_employee(employee_code, master):
                 raise SsoError("EmployeeCode was not found in VM_EmployeeMaster. Contact your administrator.", 403)
         finally:
+            reset_request_api_token(token_context)
             reset_request_api_base(api_context)
         ttl = max(300, int(os.getenv("TASK360_SSO_SESSION_MINUTES", "480")) * 60)
+        _store_portal_token(portal_session_id, portal_access_token, ttl)
         now = int(datetime.now(timezone.utc).timestamp())
         cookie = jwt.encode({
             "iss": SESSION_ISSUER, "aud": SESSION_AUDIENCE, "sub": employee_code,
@@ -221,6 +274,11 @@ class Task360SsoMiddleware(BaseHTTPMiddleware):
             api_context = set_request_api_base(_database_api_base(claims.get("target_database")))
         except SsoError as exc:
             return JSONResponse(status_code=401, content={"detail": str(exc)})
+        portal_access_token = _get_portal_token(session_id)
+        if not portal_access_token:
+            reset_request_api_base(api_context)
+            return self._unauthorized(path)
+        token_context = set_request_api_token(portal_access_token)
         try:
             try:
                 session_active = _fetch_active_portal_session(session_id, employee_code)
@@ -242,6 +300,7 @@ class Task360SsoMiddleware(BaseHTTPMiddleware):
             request.state.target_database = claims.get("target_database")
             return await call_next(request)
         finally:
+            reset_request_api_token(token_context)
             reset_request_api_base(api_context)
 
     @staticmethod
