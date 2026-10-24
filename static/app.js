@@ -567,7 +567,7 @@ function renderCharts() {
   const data = computeFilteredData();
   const css = getComputedStyle(document.documentElement);
   const colGreen = css.getPropertyValue('--chart-green').trim(); const colRed = css.getPropertyValue('--chart-red').trim();
-  const colBlue = css.getPropertyValue('--chart-blue').trim(); const textCol = css.getPropertyValue('--text').trim();
+  const colBlue = css.getPropertyValue('--chart-blue').trim(); const pendingColor = '#8FB8FF'; const textCol = css.getPropertyValue('--text').trim();
 
   if (statusDoughnutChartInstance) statusDoughnutChartInstance.destroy();
   let totalFinished = 0, totalDeferred = 0, totalAwaited = 0;
@@ -577,7 +577,7 @@ function renderCharts() {
   if(dCtx) {
       statusDoughnutChartInstance = new Chart(dCtx.getContext('2d'), {
         type: 'doughnut',
-        data: { labels: ['Finished', 'Deferred', 'Awaited'], datasets: [{ data: [totalFinished, totalDeferred, totalAwaited], backgroundColor: [colGreen, colRed, colBlue], hoverOffset: 8 }] },
+        data: { labels: ['Finished', 'Deferred', 'Awaited'], datasets: [{ data: [totalFinished, totalDeferred, totalAwaited], backgroundColor: [colGreen, colRed, pendingColor], hoverOffset: 8 }] },
         options: {
           responsive: true, maintainAspectRatio: false, cutout: '70%',
           plugins: { legend: { position: 'bottom', labels: { color: textCol }} },
