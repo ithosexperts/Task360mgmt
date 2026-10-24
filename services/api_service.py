@@ -12,6 +12,22 @@ from typing import Any
 import httpx
 
 _REQUEST_API_BASE: ContextVar[str | None] = ContextVar("task360_request_api_base", default=None)
+_REQUEST_API_TOKEN: ContextVar[str | None] = ContextVar("task360_request_api_token", default=None)
+
+
+def set_request_api_token(token: str | None) -> Token:
+    """Use the validated One Portal bearer token for this request's API calls."""
+    value = str(token or "").strip()
+    return _REQUEST_API_TOKEN.set(value or None)
+
+
+def reset_request_api_token(token: Token) -> None:
+    _REQUEST_API_TOKEN.reset(token)
+
+
+def current_request_api_token() -> str | None:
+    """Return the verified bearer token for the current request, if set."""
+    return _REQUEST_API_TOKEN.get()
 
 
 def set_request_api_base(api_base: str | None) -> Token:
@@ -140,7 +156,7 @@ def fetch_table(table_name: str, *, api_base: str | None = None) -> list[dict[st
 
     timeout_seconds = float(os.getenv("REQUEST_TIMEOUT", "15"))
     headers = {"Accept": "application/json"}
-    token = (os.getenv("API_AUTH_TOKEN") or "").strip()
+    token = (current_request_api_token() or os.getenv("API_AUTH_TOKEN") or "").strip()
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
@@ -187,10 +203,10 @@ def fetch_table_filtered(table_name: str, filters: dict[str, Any], *, api_base: 
             raise RuntimeError(f"{key}_URL is not configured.")
     timeout_seconds = float(os.getenv("REQUEST_TIMEOUT", "15"))
     headers = {"Accept": "application/json"}
-    token = (os.getenv("API_AUTH_TOKEN") or "").strip()
+    token = (current_request_api_token() or os.getenv("API_AUTH_TOKEN") or "").strip()
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    payload = {"action": "SELECT", "table": table, "filters": filters or {}}
+    payload = {"action": "Select", "table": table, "filters": filters or {}, "limit": 1}
     try:
         with httpx.Client(timeout=timeout_seconds, follow_redirects=True) as client:
             response = client.post(url, json=payload, headers=headers)
