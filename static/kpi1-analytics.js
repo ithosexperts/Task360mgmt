@@ -424,10 +424,8 @@
   async function loadKpi1Analytics(force = false) {
     const banner = byId('kpi1-load-status');
     if (banner) { banner.hidden = false; banner.textContent = 'Loading KPI 1 analytics…'; }
-    const params = new URLSearchParams(window.location.search);
-    state.email = (params.get('useremail') || params.get('email') || 'systems2@hosexperts.com').trim();
     try {
-      const response = await fetch(`/api/data?email=${encodeURIComponent(state.email)}${force ? '&force=true' : ''}`, { cache: 'no-store', headers: { Accept: 'application/json' } });
+      const response = await fetch(`/api/data${force ? '?force=true' : ''}`, { cache: 'no-store', credentials: 'same-origin', headers: { Accept: 'application/json' } });
       const raw = await response.text();
       let payload; try { payload = JSON.parse(raw); } catch { payload = { error: raw }; }
       if (!response.ok || payload.error) throw new Error(payload.error || `KPI 1 request failed (${response.status})`);
