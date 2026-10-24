@@ -192,11 +192,7 @@ input[type="date"] { color-scheme: light; }
 .data-record-table .cell-status--deferred { color: var(--brand-purple); font-weight: 700; }
 .data-record-table .cell-status--pending { color: var(--brand-indigo); font-weight: 600; }
 
-/* Desktop default visual scale: equivalent to 67% browser zoom.
-   Keep mobile layouts at their normal scale for legibility. */
-@media (min-width: 901px) {
-  html { zoom: 67%; }
-}
+/* Use native page scale for crisp text, especially when embedded in One Portal. */
 
 
 /* Reliable table rendering + chart canvases that fill their own card. */
