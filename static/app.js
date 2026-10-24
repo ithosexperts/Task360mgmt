@@ -308,6 +308,22 @@ function getGenericTaskStatus(row) {
   return planned && Date.now() > planned.getTime() ? 'Pending' : 'Planned';
 }
 
+function parseTeamNameValues(value) {
+  if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
+  if (value == null || String(value).trim() === '') return [];
+  const raw = String(value).trim();
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map(v => String(v).trim()).filter(Boolean);
+  } catch (_) { /* supports older records without JSON-encoded lookup values */ }
+  return raw.split(/\s*[;,|]\s*/).map(v => v.trim()).filter(Boolean);
+}
+
+function rowMatchesTopFilter(key, row, selected, idx) {
+  if (key === 'TEAM_NAME') return parseTeamNameValues(row[idx]).some(team => selected.has(team));
+  return selected.has(String(row[idx] ?? '').trim());
+}
+
 function computeFilteredData(options = {}) {
   const ignoreTaskStatusFilter = Boolean(options.ignoreTaskStatusFilter);
   const ignoreScoreboardStatus = Boolean(options.ignoreScoreboardStatus);
@@ -319,7 +335,7 @@ function computeFilteredData(options = {}) {
     if (selected && selected.size) {
       const idx = FILTER_COLUMNS[key];
       if (idx != null && idx >= 0) {
-        data = data.filter(r => selected.has(String(r[idx] ?? '').trim()));
+        data = data.filter(r => rowMatchesTopFilter(key, r, selected, idx));
       }
     }
   }
@@ -367,6 +383,7 @@ function renderTopFilters(headers, data) {
   const ORDER = [
     { key: 'KPI_MONTH',   label: 'KPI Month'   }, { key: 'WEEK_NO',     label: 'Week No'     },
     { key: 'DAY_NO',      label: 'Day No'      }, { key: 'DOER',        label: 'Doer'        },
+    { key: 'DEPARTMENT',  label: 'Department'  }, { key: 'TEAM_NAME',   label: 'Team Name'   },
     { key: 'FMS',         label: 'FMS'         }, { key: 'STAGE',       label: 'Stage'       },
     { key: 'TASK_STATUS', label: 'KPI 2 Status' }
   ];
@@ -376,7 +393,11 @@ function renderTopFilters(headers, data) {
     if (FILTER_COLUMNS[key] == null || FILTER_COLUMNS[key] < 0) return;
     const idx = FILTER_COLUMNS[key];
     const set = new Set();
-    data.forEach(r => { const v = r[idx]; if (v != null && String(v).trim() !== '') set.add(String(v).trim()); });
+    data.forEach(r => {
+      const v = r[idx];
+      if (key === 'TEAM_NAME') parseTeamNameValues(v).forEach(team => set.add(team));
+      else if (v != null && String(v).trim() !== '') set.add(String(v).trim());
+    });
     optionsMap[key] = Array.from(set).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
     if (!TOP_FILTERS[key]) TOP_FILTERS[key] = new Set();
   });
