@@ -16,8 +16,10 @@ from services.sql_service import load_records, sql_status
 from services.employee_service import employee_sql_status
 from services.unified_service import get_kpi1_payload, get_kpi2_payload, query_records
 from services.stage_form_service import resolve_stage_form_link
+from sso_auth import Task360SsoMiddleware, launch_from_one_portal
 
 app = FastAPI(title="Task 360 — KPI 360 1 & 2", version="1.0.0")
+app.add_middleware(Task360SsoMiddleware)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
@@ -25,6 +27,11 @@ templates = Jinja2Templates(directory="templates")
 @app.head("/")
 async def health_head():
     return HTMLResponse(status_code=200, content="")
+
+
+@app.post("/auth/launch")
+async def auth_launch(request: Request):
+    return await launch_from_one_portal(request)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -70,9 +77,9 @@ def api_db_test():
 
 
 @app.get("/api/data")
-def get_kpi1_data(email: str = Query("systems2@hosexperts.com"), force: bool = Query(False)):
+def get_kpi1_data(request: Request, force: bool = Query(False)):
     try:
-        return get_kpi1_payload(email.strip(), force=force)
+        return get_kpi1_payload(str(request.state.employee_code), force=force)
     except Exception as exc:
         traceback.print_exc()
         return JSONResponse(status_code=503, content={"error": str(exc), "headers": [], "partitions": {"admin": [], "myTeam": [], "me": []}})
@@ -80,13 +87,13 @@ def get_kpi1_data(email: str = Query("systems2@hosexperts.com"), force: bool = Q
 
 @app.get("/api/payload")
 def get_kpi2_data(
-    email: str = Query("systems2@hosexperts.com"),
+    request: Request,
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
     force: bool = Query(False),
 ):
     try:
-        return get_kpi2_payload(email.strip(), start_date, end_date, force=force)
+        return get_kpi2_payload(str(request.state.employee_code), start_date, end_date, force=force)
     except Exception as exc:
         traceback.print_exc()
         return JSONResponse(status_code=503, content={"error": str(exc), "headers": [], "partitions": {"admin": [], "myTeam": [], "me": []}, "faultyData": []})
@@ -107,16 +114,16 @@ def api_stage_form_link(
 
 @app.get("/api/query")
 def query_kpi_data(
+    request: Request,
     year: Optional[str] = Query(None),
     month: Optional[str] = Query(None),
     doer: Optional[str] = Query(None),
     fms: Optional[str] = Query(None),
     stage: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    email: str = Query(..., description="Employee email used by the existing role lookup"),
 ):
     try:
-        rows = query_records(year=year, month=month, doer=doer, fms=fms, stage=stage, status=status, email=email.strip())
+        rows = query_records(year=year, month=month, doer=doer, fms=fms, stage=stage, status=status, identifier=str(request.state.employee_code))
         return {"total": len(rows), "data": rows}
     except Exception as exc:
         traceback.print_exc()
