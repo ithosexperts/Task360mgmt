@@ -329,6 +329,15 @@
   }
 
   function toggleFilter(key, label, trigger, options) {
+    // Clicking the already-open KPI 1 filter toggles it closed.
+    if (state.openFilterKey === key && document.querySelector('.kpi1-multi-pop')) {
+      closeFilter();
+      return;
+    }
+    // Close shared/KPI 2 filter popovers before opening KPI 1's popover.
+    if (typeof window.task360CloseSharedFilterPopover === 'function') {
+      window.task360CloseSharedFilterPopover();
+    }
     closeFilter();
     state.openFilterKey = key;
     state.currentWorkset = new Set(key === 'KPI1_STATUS' ? state.kpi1StatusFilter : (state.topFilters[key] || []));
@@ -406,6 +415,8 @@
     state.openFilterKey = null; state.currentWorkset = new Set();
   }
 
+  window.task360CloseKpi1FilterPopover = closeFilter;
+
   async function loadKpi1Analytics(force = false) {
     const banner = byId('kpi1-load-status');
     if (banner) { banner.hidden = false; banner.textContent = 'Loading KPI 1 analytics…'; }
@@ -449,8 +460,4 @@
   byId('kpi1-reset-filters-btn')?.addEventListener('click', window.resetKpi1Filters);
   byId('kpi1-drill-back')?.addEventListener('click', () => { resetDrill(); renderAll(); });
   byId('kpi1-ld-drill-back')?.addEventListener('click', () => { state.leadDrill = { fms: null, stage: null }; renderAll(); });
-  document.addEventListener('click', event => {
-    const pop = document.querySelector('.kpi1-multi-pop');
-    if (pop && !pop.contains(event.target) && !event.target.closest('.kpi1-filter-chip-btn')) closeFilter();
-  });
 })();
