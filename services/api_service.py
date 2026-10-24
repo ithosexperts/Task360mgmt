@@ -6,9 +6,33 @@ API_1_URL / API_2_URL using the same action=select contract as the other portals
 from __future__ import annotations
 
 import os
+from contextvars import ContextVar, Token
 from typing import Any
 
 import httpx
+
+_REQUEST_API_BASE: ContextVar[str | None] = ContextVar("task360_request_api_base", default=None)
+
+
+def set_request_api_base(api_base: str | None) -> Token:
+    """Set a request-scoped API base from a verified One Portal SSO ticket."""
+    key = str(api_base or "").strip().upper()
+    if key not in {"API_1", "API_2"}:
+        key = "API_1"
+    return _REQUEST_API_BASE.set(key)
+
+
+def reset_request_api_base(token: Token) -> None:
+    _REQUEST_API_BASE.reset(token)
+
+
+def current_api_base_name() -> str:
+    override = _REQUEST_API_BASE.get()
+    if override in {"API_1", "API_2"}:
+        return override
+    raw = (os.getenv("KPI_API_BASE") or "API_1").strip().upper()
+    return "API_2" if raw in {"2", "API2", "API_2", "PROD", "PRODUCTION", "OPERATIONSDB"} else "API_1"
+
 
 _WRAPPER_KEYS = (
     "data", "rows", "items", "result", "results", "records",
@@ -22,7 +46,7 @@ def _active_api_base() -> tuple[str, str]:
     Default to API_1, which is the apiv2.php endpoint used for Test_OperationsDB
     in the existing portal convention. Set KPI_API_BASE=API_2 to select API_2.
     """
-    base = (os.getenv("KPI_API_BASE") or "API_1").strip().upper()
+    base = current_api_base_name()
     if base in {"1", "API1", "API_1", "TEST", "TEST_OPERATIONSDB"}:
         key = "API_1"
         env_key = "API_1_URL"
@@ -145,3 +169,43 @@ def fetch_table(table_name: str, *, api_base: str | None = None) -> list[dict[st
         raise RuntimeError(f"SQL API did not return JSON. Response starts with: {snippet}") from exc
 
     return _extract_rows(payload)
+
+
+def fetch_table_filtered(table_name: str, filters: dict[str, Any], *, api_base: str | None = None) -> list[dict[str, Any]]:
+    """SELECT rows with API gateway filters, used for One Portal session validation."""
+    table = str(table_name or "").strip()
+    if not table:
+        raise RuntimeError("A table name is required.")
+    if api_base is None:
+        _base_key, url = _active_api_base()
+    else:
+        key = str(api_base).strip().upper()
+        if key not in {"API_1", "API_2"}:
+            raise RuntimeError("api_base must be API_1 or API_2.")
+        url = (os.getenv(f"{key}_URL") or "").strip().rstrip("/")
+        if not url:
+            raise RuntimeError(f"{key}_URL is not configured.")
+    timeout_seconds = float(os.getenv("REQUEST_TIMEOUT", "15"))
+    headers = {"Accept": "application/json"}
+    token = (os.getenv("API_AUTH_TOKEN") or "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    payload = {"action": "SELECT", "table": table, "filters": filters or {}}
+    try:
+        with httpx.Client(timeout=timeout_seconds, follow_redirects=True) as client:
+            response = client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+    except httpx.TimeoutException as exc:
+        raise RuntimeError(f"SQL API request timed out after {timeout_seconds:g} seconds.") from exc
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = (exc.response.text or "")[:500]
+        raise RuntimeError(f"SQL API returned HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"Could not reach the configured SQL API: {exc}") from exc
+    try:
+        payload_data = response.json()
+    except ValueError as exc:
+        snippet = (response.text or "")[:250]
+        raise RuntimeError(f"SQL API did not return JSON. Response starts with: {snippet}") from exc
+    return _extract_rows(payload_data)
