@@ -1,5 +1,13 @@
 // ====== Value labels plugin ======
 const SMALL_SLICE_PCT = 0.06;
+
+// Keep chart labels, axes, and legends readable at 90% browser zoom.
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.font.family = 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
+  Chart.defaults.font.size = 14;
+  Chart.defaults.color = '#30233A';
+}
+
 const ValueLabelsPlugin = {
   id: 'valueLabels',
   afterDatasetsDraw(chart) {
