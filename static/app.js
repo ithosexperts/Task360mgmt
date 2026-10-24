@@ -269,9 +269,8 @@ function handlePayload(payload) {
 function deriveDefaultPartitionName() {
   if (ROLEINFO.isAdmin) return 'Admin View';
   if (ROLEINFO.isManager) return 'My Team View';
-  // Every authenticated EmployeeCode has Me/User access, even when no task
-  // records currently match that employee. Empty data is not an access denial.
-  return 'Me View';
+  if (PARTITIONS.me?.length) return 'My Performance View';
+  return 'No Access';
 }
 
 function getStatusBucket(row) {
@@ -454,9 +453,8 @@ function toggleTopPopover(key, triggerBtn, options) {
     const rect = triggerBtn.getBoundingClientRect();
     const margin = 12;
     const gap = 8;
-    // Task 360 applies html { zoom: 67% } on desktop. DOMRects are viewport
-    // pixels, while fixed CSS coordinates live inside that zoomed coordinate
-    // space, so convert back to CSS pixels to keep the popover flush with its trigger.
+    // Measure in viewport coordinates and use the native page scale so popovers
+    // line up directly under their filters in the dashboard and One Portal iframe.
     const rootZoomValue = Number.parseFloat(getComputedStyle(document.documentElement).zoom);
     const rootZoom = Number.isFinite(rootZoomValue) && rootZoomValue > 0 ? rootZoomValue : 1;
     const viewportWidth = window.innerWidth;
@@ -571,7 +569,7 @@ function renderCharts() {
   const data = computeFilteredData();
   const css = getComputedStyle(document.documentElement);
   const colGreen = css.getPropertyValue('--chart-green').trim(); const colRed = css.getPropertyValue('--chart-red').trim();
-  const colBlue = css.getPropertyValue('--chart-blue').trim(); const pendingColor = '#8FB8FF'; const textCol = css.getPropertyValue('--text').trim();
+  const colBlue = css.getPropertyValue('--chart-blue').trim(); const pendingColor = '#7F5D99'; const textCol = css.getPropertyValue('--text').trim();
 
   if (statusDoughnutChartInstance) statusDoughnutChartInstance.destroy();
   let totalFinished = 0, totalDeferred = 0, totalAwaited = 0;
