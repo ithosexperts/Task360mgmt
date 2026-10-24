@@ -6,6 +6,7 @@ stays unchanged. It does not open a SQL Server connection and does not execute S
 from __future__ import annotations
 
 import os
+import re
 import threading
 import time
 from datetime import date, datetime
@@ -84,6 +85,117 @@ def load_records(force: bool = False) -> list[dict[str, Any]]:
         _CACHE["rows"] = rows
         _CACHE["fetched_at"] = now
     return [dict(row) for row in rows]
+
+
+# Cached lookup maps used for the Department and Team Name dashboard filters.
+_LOOKUP_CACHE: dict[str, Any] = {
+    "fetched_at": 0.0,
+    "department_by_code": {},
+    "teams_by_code": {},
+    "warnings": [],
+}
+_LOOKUP_LOCK = threading.Lock()
+
+
+def _lookup_key(value: Any) -> str:
+    return str(value if value is not None else "").strip().casefold()
+
+
+def _lookup_canonical_code(value: Any) -> str:
+    key = _lookup_key(value)
+    if key.isdigit():
+        return key.lstrip("0") or "0"
+    return key
+
+
+def _lookup_field(row: dict[str, Any], *aliases: str) -> Any:
+    normalized = {
+        re.sub(r"[^a-z0-9]", "", str(key).casefold()): value
+        for key, value in row.items()
+    }
+    for alias in aliases:
+        key = re.sub(r"[^a-z0-9]", "", alias.casefold())
+        value = normalized.get(key)
+        if value is not None and str(value).strip() and str(value).strip().casefold() not in {"null", "none"}:
+            return value
+    return None
+
+
+def load_department_team_lookups(force: bool = False) -> dict[str, Any]:
+    """Return DoerCode -> Department/Team Name lookups, without joining extra visible table columns.
+
+    Defaults match the SQL tables confirmed by the user: VM_EmployeeMaster and VM_Team.
+    A Doer may belong to multiple teams; those team names are returned as a list.
+    Lookup failures are non-fatal to the main KPI dashboard and included as warnings.
+    """
+    ttl = max(30, int(os.getenv("KPI_ORG_LOOKUP_CACHE_SECONDS", "300")))
+    now = time.time()
+    with _LOOKUP_LOCK:
+        if not force and _LOOKUP_CACHE["fetched_at"] and now - _LOOKUP_CACHE["fetched_at"] < ttl:
+            return {
+                "department_by_code": dict(_LOOKUP_CACHE["department_by_code"]),
+                "teams_by_code": {k: list(v) for k, v in _LOOKUP_CACHE["teams_by_code"].items()},
+                "warnings": list(_LOOKUP_CACHE["warnings"]),
+            }
+
+    employee_table = (os.getenv("KPI_EMPLOYEE_LOOKUP_TABLE") or "VM_EmployeeMaster").strip()
+    team_table = (os.getenv("KPI_TEAM_LOOKUP_TABLE") or "VM_Team").strip()
+    warnings: list[str] = []
+    try:
+        employee_rows = fetch_table(employee_table)
+    except Exception as exc:  # keep core KPI page available if a lookup table is not accessible
+        employee_rows = []
+        warnings.append(f"Department lookup from {employee_table} failed: {exc}")
+    try:
+        team_rows = fetch_table(team_table)
+    except Exception as exc:
+        team_rows = []
+        warnings.append(f"Team lookup from {team_table} failed: {exc}")
+
+    department_by_code: dict[str, str] = {}
+    departments_by_canonical: dict[str, set[str]] = {}
+    for row in employee_rows:
+        code = _lookup_field(row, "EmployeeCode", "Employee Code", "EmpCode", "EmployeeID")
+        dept = _lookup_field(row, "Department", "DepartmentName", "Dept")
+        key = _lookup_key(code)
+        dept_text = str(dept).strip() if dept is not None else ""
+        if not key or not dept_text:
+            continue
+        department_by_code.setdefault(key, dept_text)
+        departments_by_canonical.setdefault(_lookup_canonical_code(code), set()).add(dept_text)
+
+    teams_by_code_mut: dict[str, set[str]] = {}
+    teams_by_canonical_mut: dict[str, set[str]] = {}
+    for row in team_rows:
+        code = _lookup_field(row, "EmployeeCode", "Employee Code", "EmpCode", "EmployeeID")
+        team = _lookup_field(row, "TeamName", "Team Name")
+        key = _lookup_key(code)
+        team_text = str(team).strip() if team is not None else ""
+        if not key or not team_text:
+            continue
+        teams_by_code_mut.setdefault(key, set()).add(team_text)
+        teams_by_canonical_mut.setdefault(_lookup_canonical_code(code), set()).add(team_text)
+
+    # Add numeric-code fallbacks only when the canonical employee-code mapping is unambiguous.
+    for canonical, departments in departments_by_canonical.items():
+        if len(departments) == 1:
+            department_by_code.setdefault(f"__canonical__:{canonical}", next(iter(departments)))
+    for canonical, teams in teams_by_canonical_mut.items():
+        teams_by_code_mut.setdefault(f"__canonical__:{canonical}", set()).update(teams)
+
+    teams_by_code = {key: sorted(values, key=str.casefold) for key, values in teams_by_code_mut.items()}
+    with _LOOKUP_LOCK:
+        _LOOKUP_CACHE.update({
+            "fetched_at": now,
+            "department_by_code": department_by_code,
+            "teams_by_code": teams_by_code,
+            "warnings": warnings,
+        })
+    return {
+        "department_by_code": dict(department_by_code),
+        "teams_by_code": {k: list(v) for k, v in teams_by_code.items()},
+        "warnings": list(warnings),
+    }
 
 
 def sql_status() -> dict[str, Any]:
