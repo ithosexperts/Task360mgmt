@@ -158,16 +158,12 @@ def kpi2_status(record: dict[str, Any]) -> str:
     return "Awaited"
 
 
-def _employees_and_role(email: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    # SQL-backed employee master; the KPI and employee tables share one SQL connection config.
-    from services.employee_service import detect_roles, read_employee_master
+def _employees_and_role(identifier: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    # Employee identity comes from a validated One Portal session's EmployeeCode.
+    from services.employee_service import detect_roles, read_employee_master, find_employee
     master = read_employee_master() or {}
-    role = detect_roles(email, master)
-    own = {}
-    for key, value in master.items():
-        if norm(key) == norm(email) and isinstance(value, dict):
-            own = value
-            break
+    role = detect_roles(identifier, master)
+    own = find_employee(identifier, master) or {}
     return master, role, own
 
 
@@ -206,7 +202,15 @@ def _build_team(master: dict[str, Any], email: str) -> tuple[set[str], set[str]]
                 codes.add(norm(code))
             walk(str(child_email))
 
-    walk(email)
+    root_key = email
+    root_norm = norm(email)
+    for key, employee in master.items():
+        if not isinstance(employee, dict):
+            continue
+        if root_norm in {norm(key), norm(_first_value(employee, "email", "emailid", "offemail")), norm(_first_value(employee, "employeeCode", "employee code", "empCode", "employeeId", "code"))}:
+            root_key = str(key)
+            break
+    walk(root_key)
     return names, codes
 
 
@@ -219,11 +223,12 @@ def _manager_chain_matches(chain: Any, code: Any) -> bool:
     return code_s in tokens
 
 
-def partition_records(records: list[dict[str, Any]], email: str) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
-    master, role, own = _employees_and_role(email)
+def partition_records(records: list[dict[str, Any]], identifier: str) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
+    master, role, own = _employees_and_role(identifier)
     own_name = norm(_first_value(own, "employeeName", "employee name", "name"))
     own_code = norm(_first_value(own, "employeeCode", "employee code", "empCode", "employeeId", "code"))
-    team_names, team_codes = _build_team(master, email)
+    own_email = norm(_first_value(own, "email", "emailid", "offemail"))
+    team_names, team_codes = _build_team(master, own_email or identifier)
     if own_name:
         team_names.add(own_name)
     if own_code:
@@ -252,7 +257,7 @@ def partition_records(records: list[dict[str, Any]], email: str) -> tuple[dict[s
         "me": me_rows,
     }
     role = dict(role)
-    role.setdefault("email", email)
+    role.setdefault("email", str(own.get("email") or ""))
     role["employeeName"] = role.get("employeeName") or own_name
     role["nameHints"] = {
         "adminNames": [],
@@ -363,12 +368,12 @@ def _filter_dates(records: list[dict[str, Any]], start_date: str | None, end_dat
     return result
 
 
-def get_kpi1_payload(email: str, force: bool = False) -> dict[str, Any]:
+def get_kpi1_payload(identifier: str, force: bool = False) -> dict[str, Any]:
     all_records = load_records(force=force)
     lookups = load_department_team_lookups(force=force)
-    partitions, role = partition_records(all_records, email)
+    partitions, role = partition_records(all_records, identifier)
     return {
-        "email": email,
+        "employeeCode": role.get("employeeCode", identifier),
         "headers": KPI1_HEADERS,
         "partitions": {key: [kpi1_row(r, lookups) for r in rows] for key, rows in partitions.items()},
         "roleInfo": role,
@@ -376,7 +381,7 @@ def get_kpi1_payload(email: str, force: bool = False) -> dict[str, Any]:
     }
 
 
-def get_kpi2_payload(email: str, start_date: str | None = None, end_date: str | None = None, force: bool = False) -> dict[str, Any]:
+def get_kpi2_payload(identifier: str, start_date: str | None = None, end_date: str | None = None, force: bool = False) -> dict[str, Any]:
     """Return every available row; legacy date arguments are intentionally ignored.
 
     The dashboard no longer exposes a date-range picker, and old URLs that still
@@ -384,10 +389,10 @@ def get_kpi2_payload(email: str, start_date: str | None = None, end_date: str | 
     """
     all_records = load_records(force=force)
     lookups = load_department_team_lookups(force=force)
-    partitions, role = partition_records(all_records, email)
+    partitions, role = partition_records(all_records, identifier)
     summaries = _group_summaries(all_records)
     return {
-        "email": email,
+        "employeeCode": role.get("employeeCode", identifier),
         "headers": KPI2_HEADERS,
         "filterIndexes": dict(KPI2_FILTER_INDEXES),
         "partitions": {key: [kpi2_row(r, summaries, lookups) for r in rows] for key, rows in partitions.items()},
@@ -400,11 +405,11 @@ def get_kpi2_payload(email: str, start_date: str | None = None, end_date: str | 
 
 def query_records(year: str | None = None, month: str | None = None, doer: str | None = None,
                   fms: str | None = None, stage: str | None = None, status: str | None = None,
-                  email: str | None = None) -> list[dict[str, Any]]:
+                  identifier: str | None = None) -> list[dict[str, Any]]:
     records = load_records()
-    if not email:
+    if not identifier:
         return []
-    partitions, role = partition_records(records, email)
+    partitions, role = partition_records(records, identifier)
     if role.get("isAdmin"):
         records = partitions["admin"]
     elif role.get("isManager"):
