@@ -13,7 +13,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from services.api_service import fetch_table, api_configuration
+from services.api_service import fetch_table, api_configuration, current_api_base_name
 
 REQUIRED_COLUMNS = [
     "KPIRecordKey", "InsertTS", "AppID", "RowID", "StageNo", "FMSName",
@@ -25,7 +25,7 @@ REQUIRED_COLUMNS = [
     "ManagerCode", "ManagerName", "ManagerChain",
 ]
 
-_CACHE: dict[str, Any] = {"fetched_at": 0.0, "rows": []}
+_CACHE: dict[str, Any] = {"entries": {}}
 _CACHE_LOCK = threading.Lock()
 
 
@@ -66,9 +66,11 @@ def load_records(force: bool = False) -> list[dict[str, Any]]:
     """Fetch and briefly cache API rows so both dashboards share the same read."""
     ttl = max(0, int(os.getenv("KPI_SQL_CACHE_SECONDS", "30")))
     now = time.time()
+    cache_key = current_api_base_name()
     with _CACHE_LOCK:
-        if not force and _CACHE["rows"] and now - _CACHE["fetched_at"] < ttl:
-            return [dict(row) for row in _CACHE["rows"]]
+        entry = (_CACHE.get("entries") or {}).get(cache_key) or {}
+        if not force and entry.get("rows") and now - entry.get("fetched_at", 0.0) < ttl:
+            return [dict(row) for row in entry["rows"]]
 
     table = _table_name()
     max_rows = max(1, min(int(os.getenv("KPI_SQL_MAX_ROWS", "100000")), 500000))
@@ -82,18 +84,12 @@ def load_records(force: bool = False) -> list[dict[str, Any]]:
             rows.append(cleaned)
 
     with _CACHE_LOCK:
-        _CACHE["rows"] = rows
-        _CACHE["fetched_at"] = now
+        _CACHE.setdefault("entries", {})[cache_key] = {"rows": rows, "fetched_at": now}
     return [dict(row) for row in rows]
 
 
 # Cached lookup maps used for the Department and Team Name dashboard filters.
-_LOOKUP_CACHE: dict[str, Any] = {
-    "fetched_at": 0.0,
-    "department_by_code": {},
-    "teams_by_code": {},
-    "warnings": [],
-}
+_LOOKUP_CACHE: dict[str, Any] = {"entries": {}}
 _LOOKUP_LOCK = threading.Lock()
 
 
@@ -130,12 +126,14 @@ def load_department_team_lookups(force: bool = False) -> dict[str, Any]:
     """
     ttl = max(30, int(os.getenv("KPI_ORG_LOOKUP_CACHE_SECONDS", "300")))
     now = time.time()
+    cache_key = current_api_base_name()
     with _LOOKUP_LOCK:
-        if not force and _LOOKUP_CACHE["fetched_at"] and now - _LOOKUP_CACHE["fetched_at"] < ttl:
+        entry = (_LOOKUP_CACHE.get("entries") or {}).get(cache_key) or {}
+        if not force and entry.get("fetched_at") and now - entry["fetched_at"] < ttl:
             return {
-                "department_by_code": dict(_LOOKUP_CACHE["department_by_code"]),
-                "teams_by_code": {k: list(v) for k, v in _LOOKUP_CACHE["teams_by_code"].items()},
-                "warnings": list(_LOOKUP_CACHE["warnings"]),
+                "department_by_code": dict(entry["department_by_code"]),
+                "teams_by_code": {k: list(v) for k, v in entry["teams_by_code"].items()},
+                "warnings": list(entry["warnings"]),
             }
 
     employee_table = (os.getenv("KPI_EMPLOYEE_LOOKUP_TABLE") or "VM_EmployeeMaster").strip()
@@ -185,12 +183,12 @@ def load_department_team_lookups(force: bool = False) -> dict[str, Any]:
 
     teams_by_code = {key: sorted(values, key=str.casefold) for key, values in teams_by_code_mut.items()}
     with _LOOKUP_LOCK:
-        _LOOKUP_CACHE.update({
+        _LOOKUP_CACHE.setdefault("entries", {})[cache_key] = {
             "fetched_at": now,
             "department_by_code": department_by_code,
             "teams_by_code": teams_by_code,
             "warnings": warnings,
-        })
+        }
     return {
         "department_by_code": dict(department_by_code),
         "teams_by_code": {k: list(v) for k, v in teams_by_code.items()},
