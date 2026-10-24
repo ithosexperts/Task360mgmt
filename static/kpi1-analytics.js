@@ -16,7 +16,7 @@
     email: ''
   };
 
-  const SHARED_FILTER_KEYS = ['KPI_MONTH', 'WEEK_NO', 'DAY_NO', 'DOER', 'FMS', 'STAGE'];
+  const SHARED_FILTER_KEYS = ['KPI_MONTH', 'WEEK_NO', 'DAY_NO', 'DOER', 'DEPARTMENT', 'TEAM_NAME', 'FMS', 'STAGE'];
 
   const byId = (id) => document.getElementById(id);
   const normalKey = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -66,7 +66,8 @@
         'actual': 'ACTUAL', 'delayhours': 'DELAY_HRS', 'taskstatus': 'TASK_STATUS',
         'kpimonth': 'KPI_MONTH', 'weekno': 'WEEK_NO', 'dayno': 'DAY_NO',
         'kpi01score': 'KPI01_SCORE', 'kpi01factoredscore': 'KPI01_FACTORED_SCORE',
-        'presencefactor': 'PRESENCE_FACTOR', 'managername': 'MANAGER_NAME', 'managercode': 'MANAGER_CODE'
+        'presencefactor': 'PRESENCE_FACTOR', 'managername': 'MANAGER_NAME', 'managercode': 'MANAGER_CODE',
+        'department': 'DEPARTMENT', 'teamname': 'TEAM_NAME', 'teamnames': 'TEAM_NAME'
       };
       if (aliases[key]) map[aliases[key]] = i;
     });
@@ -130,12 +131,28 @@
     }
   }
 
+  function teamNamesFromValue(value) {
+    if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
+    if (value == null || String(value).trim() === '') return [];
+    const raw = String(value).trim();
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.map(v => String(v).trim()).filter(Boolean);
+    } catch (_) { /* fallback for old/non-JSON rows */ }
+    return raw.split(/\s*[;,|]\s*/).map(v => v.trim()).filter(Boolean);
+  }
+
+  function matchesSharedFilter(row, key, selected, index) {
+    if (key === 'TEAM_NAME') return teamNamesFromValue(row[index]).some(team => selected.has(team));
+    return selected.has(String(row[index] ?? '').trim());
+  }
+
   function filteredRows() {
     let rows = state.allRows.slice();
     for (const key of SHARED_FILTER_KEYS) {
       const selected = state.topFilters[key];
       const index = state.indexes[key];
-      if (selected && selected.size && index != null) rows = rows.filter(row => selected.has(String(row[index] ?? '').trim()));
+      if (selected && selected.size && index != null) rows = rows.filter(row => matchesSharedFilter(row, key, selected, index));
     }
     const statusIndex = state.indexes.TASK_STATUS;
     if (state.kpi1StatusFilter.size && statusIndex != null) {
