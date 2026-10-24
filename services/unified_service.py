@@ -377,18 +377,22 @@ def get_kpi1_payload(email: str, force: bool = False) -> dict[str, Any]:
 
 
 def get_kpi2_payload(email: str, start_date: str | None = None, end_date: str | None = None, force: bool = False) -> dict[str, Any]:
+    """Return every available row; legacy date arguments are intentionally ignored.
+
+    The dashboard no longer exposes a date-range picker, and old URLs that still
+    include start_date/end_date must not silently restrict the records.
+    """
     all_records = load_records(force=force)
     lookups = load_department_team_lookups(force=force)
-    date_records = _filter_dates(all_records, start_date, end_date)
-    partitions, role = partition_records(date_records, email)
-    summaries = _group_summaries(date_records)
+    partitions, role = partition_records(all_records, email)
+    summaries = _group_summaries(all_records)
     return {
         "email": email,
         "headers": KPI2_HEADERS,
         "filterIndexes": dict(KPI2_FILTER_INDEXES),
         "partitions": {key: [kpi2_row(r, summaries, lookups) for r in rows] for key, rows in partitions.items()},
         "roleInfo": role,
-        "stats": {"totalSystemRecords": len(all_records), "loadedRecords": len(date_records)},
+        "stats": {"totalSystemRecords": len(all_records), "loadedRecords": len(all_records)},
         "faultyData": [],
         "organizationLookupWarnings": list(lookups.get("warnings", [])),
     }
