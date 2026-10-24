@@ -16,7 +16,7 @@ from services.sql_service import load_records, sql_status
 from services.employee_service import employee_sql_status
 from services.unified_service import get_kpi1_payload, get_kpi2_payload, query_records
 from services.stage_form_service import resolve_stage_form_link
-from sso_auth import Task360SsoMiddleware, launch_from_one_portal
+from services.sso_auth import Task360SsoMiddleware, launch_from_one_portal
 
 app = FastAPI(title="Task 360 — KPI 360 1 & 2", version="1.0.0")
 app.add_middleware(Task360SsoMiddleware)
