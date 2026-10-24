@@ -172,11 +172,9 @@ function renderFaultyTable() {
 }
 
 async function refreshData() {
-  const urlParams = new URLSearchParams(window.location.search);
-  let userEmail = urlParams.get('useremail') || urlParams.get('email') || 'systems2@hosexperts.com';
-  
-  // Date-range filtering has been removed: always load the full available dataset.
-  window.history.replaceState({}, '', `?useremail=${encodeURIComponent(userEmail.trim())}`);
+  // Identity comes from the HttpOnly session established by One Portal SSO.
+  // Do not accept an email or EmployeeCode from the browser URL.
+  window.history.replaceState({}, '', window.location.pathname);
 
   const btn = document.getElementById('refresh-button'); 
   if(btn) { btn.disabled = true; btn.textContent = 'Downloading...'; }
@@ -191,9 +189,7 @@ async function refreshData() {
   if(statsDiv) statsDiv.style.display = 'none';
 
   try {
-    const fetchUrl = `/api/payload?email=${encodeURIComponent(userEmail.trim().toLowerCase())}`;
-    
-    const response = await fetch(fetchUrl);
+    const response = await fetch('/api/payload', { credentials: 'same-origin' });
     if (!response.ok) {
       // Preserve the server's actual JSON error instead of hiding it behind a generic 503.
       const rawBody = await response.text();
@@ -205,6 +201,8 @@ async function refreshData() {
         // Keep plain-text response bodies as the diagnostic detail.
       }
       const compactDetail = String(detail || '').replace(/\s+/g, ' ').trim().slice(0, 700);
+      if (response.status === 401) throw new Error('Your One Portal session is not active. Please reopen Task 360 from One Portal.');
+      if (response.status === 403) throw new Error(compactDetail || 'You do not have access to Task 360.');
       throw new Error(`HTTP ${response.status}${compactDetail ? `: ${compactDetail}` : ''}`);
     }
     const payload = await response.json();
@@ -238,16 +236,21 @@ function handlePayload(payload) {
   FAULTY_DATA = payload.faultyData || []; 
 
   const emailDisp = document.getElementById('user-email-display');
-  if(emailDisp) emailDisp.textContent = `${payload.email || 'Unknown'} (${deriveDefaultPartitionName()})`;
+  if(emailDisp) {
+    const who = ROLEINFO.employeeName || 'Employee';
+    const code = ROLEINFO.employeeCode || payload.employeeCode || '';
+    emailDisp.textContent = `${who}${code ? ` · ${code}` : ''} (${deriveDefaultPartitionName()})`;
+  }
 
   const bA = document.getElementById('tab-admin');
   const bT = document.getElementById('tab-myteam');
   const bM = document.getElementById('tab-me');
   const bF = document.getElementById('tab-faulty');
   
+  if(bA) bA.style.display = ROLEINFO.isAdmin ? 'inline-flex' : 'none';
   if(bA) bA.disabled = !ROLEINFO.isAdmin;
-  if(bT) bT.disabled = !(PARTITIONS.myTeam && PARTITIONS.myTeam.length);
-  if(bM) bM.disabled = !(PARTITIONS.me && PARTITIONS.me.length);
+  if(bT) { bT.style.display = ROLEINFO.isManager ? 'inline-flex' : 'none'; bT.disabled = !ROLEINFO.isManager; }
+  if(bM) { bM.style.display = 'inline-flex'; bM.disabled = false; }
 
   if (ROLEINFO.isAdmin && FAULTY_DATA.length > 0) {
       if(bF) {
@@ -258,14 +261,14 @@ function handlePayload(payload) {
       if(bF) bF.style.display = 'none';
   }
 
-  if (ROLEINFO.isAdmin) setMode('admin'); 
-  else if (PARTITIONS.myTeam?.length) setMode('myTeam'); 
+  if (ROLEINFO.isAdmin) setMode('admin');
+  else if (ROLEINFO.isManager) setMode('myTeam');
   else setMode('me');
 }
 
 function deriveDefaultPartitionName() {
   if (ROLEINFO.isAdmin) return 'Admin View';
-  if (PARTITIONS.myTeam?.length) return 'My Team View';
+  if (ROLEINFO.isManager) return 'My Team View';
   if (PARTITIONS.me?.length) return 'My Performance View';
   return 'No Access';
 }
