@@ -179,7 +179,7 @@
       green: css.getPropertyValue('--chart-green').trim() || '#45A9A9',
       red: css.getPropertyValue('--chart-red').trim() || '#4E1F6E',
       blue: css.getPropertyValue('--chart-blue').trim() || '#3E3E75',
-      pending: '#8FB8FF',
+      pending: '#7F5D99',
       text: css.getPropertyValue('--text').trim() || '#30233A'
     };
   }
