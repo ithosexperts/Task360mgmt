@@ -179,6 +179,7 @@
       green: css.getPropertyValue('--chart-green').trim() || '#45A9A9',
       red: css.getPropertyValue('--chart-red').trim() || '#4E1F6E',
       blue: css.getPropertyValue('--chart-blue').trim() || '#3E3E75',
+      pending: '#8FB8FF',
       text: css.getPropertyValue('--text').trim() || '#30233A'
     };
   }
@@ -192,7 +193,7 @@
       rows.forEach(row => totals[statusBucket(row)]++);
       state.charts.status = new Chart(statusCanvas.getContext('2d'), {
         type: 'doughnut',
-        data: { labels: ['Done On-Time', 'Done Delayed', 'Pending / In Progress'], datasets: [{ data: [totals.ontime, totals.delayed, totals.pending], backgroundColor: [colors.green, colors.red, colors.blue], hoverOffset: 8 }] },
+        data: { labels: ['Done On-Time', 'Done Delayed', 'Pending / In Progress'], datasets: [{ data: [totals.ontime, totals.delayed, totals.pending], backgroundColor: [colors.green, colors.red, colors.pending], hoverOffset: 8 }] },
         options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { color: colors.text } } }, onClick: (_event, elements) => {
           if (!elements.length) return;
           const next = ['ontime', 'delayed', 'pending'][elements[0].index];
