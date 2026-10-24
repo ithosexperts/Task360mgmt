@@ -269,8 +269,9 @@ function handlePayload(payload) {
 function deriveDefaultPartitionName() {
   if (ROLEINFO.isAdmin) return 'Admin View';
   if (ROLEINFO.isManager) return 'My Team View';
-  if (PARTITIONS.me?.length) return 'My Performance View';
-  return 'No Access';
+  // Every authenticated EmployeeCode has Me/User access, even when no task
+  // records currently match that employee. Empty data is not an access denial.
+  return 'Me View';
 }
 
 function getStatusBucket(row) {
@@ -570,7 +571,7 @@ function renderCharts() {
   const data = computeFilteredData();
   const css = getComputedStyle(document.documentElement);
   const colGreen = css.getPropertyValue('--chart-green').trim(); const colRed = css.getPropertyValue('--chart-red').trim();
-  const colBlue = css.getPropertyValue('--chart-blue').trim(); const pendingColor = '#7F5D99'; const textCol = css.getPropertyValue('--text').trim();
+  const colBlue = css.getPropertyValue('--chart-blue').trim(); const pendingColor = '#8FB8FF'; const textCol = css.getPropertyValue('--text').trim();
 
   if (statusDoughnutChartInstance) statusDoughnutChartInstance.destroy();
   let totalFinished = 0, totalDeferred = 0, totalAwaited = 0;
