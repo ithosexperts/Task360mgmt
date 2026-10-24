@@ -175,10 +175,8 @@ async function refreshData() {
   const urlParams = new URLSearchParams(window.location.search);
   let userEmail = urlParams.get('useremail') || urlParams.get('email') || 'systems2@hosexperts.com';
   
-  const sDate = document.getElementById('start-date')?.value || '';
-  const eDate = document.getElementById('end-date')?.value || '';
-
-  window.history.replaceState({}, '', `?useremail=${encodeURIComponent(userEmail.trim())}&start=${sDate}&end=${eDate}`);
+  // Date-range filtering has been removed: always load the full available dataset.
+  window.history.replaceState({}, '', `?useremail=${encodeURIComponent(userEmail.trim())}`);
 
   const btn = document.getElementById('refresh-button'); 
   if(btn) { btn.disabled = true; btn.textContent = 'Downloading...'; }
@@ -193,7 +191,7 @@ async function refreshData() {
   if(statsDiv) statsDiv.style.display = 'none';
 
   try {
-    const fetchUrl = `/api/payload?email=${encodeURIComponent(userEmail.trim().toLowerCase())}&start_date=${sDate}&end_date=${eDate}`;
+    const fetchUrl = `/api/payload?email=${encodeURIComponent(userEmail.trim().toLowerCase())}`;
     
     const response = await fetch(fetchUrl);
     if (!response.ok) {
@@ -972,26 +970,7 @@ window.onload = function() {
   bindTaskStatusScoreboard();
   const attach = (id, event, fn) => { const el = document.getElementById(id); if(el) el.addEventListener(event, fn); };
 
-  const urlParams = new URLSearchParams(window.location.search);
-  let sDate = urlParams.get('start') || '';
-  let eDate = urlParams.get('end') || '';
-
-  if (!sDate || !eDate) {
-      const today = new Date();
-      const ninetyDaysAgo = new Date();
-      ninetyDaysAgo.setDate(today.getDate() - 90);
-      sDate = ninetyDaysAgo.toISOString().split('T')[0];
-      eDate = today.toISOString().split('T')[0];
-  }
-
-  const sdInput = document.getElementById('start-date');
-  const edInput = document.getElementById('end-date');
-  if(sdInput) sdInput.value = sDate;
-  if(edInput) edInput.value = eDate;
-
-  // --- NAYA: AUTO REFRESH ON DATE CHANGE ---
-  attach('start-date', 'change', refreshData);
-  attach('end-date', 'change', refreshData);
+  // No date-range controls: load every available row for the selected access view.
 
   attach('refresh-button', 'click', refreshData);
   attach('tab-admin', 'click', () => setMode('admin'));
