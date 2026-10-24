@@ -5,7 +5,7 @@
   <title>Task 360 Management System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=task360-scoreboard-pastel-20261023-v2">
+  <link rel="stylesheet" href="/static/style.css?v=task360-load-all-rows-20261024-v1">
   <style>
       /* Fix for Calendar Icon appearing dark on dark mode */
       input[type="date"] { color-scheme: light; }
@@ -22,12 +22,6 @@
     <div class="flex flex-wrap items-center gap-3">
       <div class="text-sm muted" id="user-email-display">Loading User...</div>
       
-      <div class="flex items-center gap-1 border rounded p-1.5 px-2" style="border-color:var(--border); background:var(--bg);">
-        <input type="date" id="start-date" class="text-xs bg-transparent text-text outline-none cursor-pointer" title="Start Date">
-        <span class="muted text-xs px-1 font-semibold">TO</span>
-        <input type="date" id="end-date" class="text-xs bg-transparent text-text outline-none cursor-pointer" title="End Date">
-      </div>
-
       <div id="loading-stats" class="text-xs font-bold px-3 py-1.5 rounded" style="background:var(--bg-card); border: 1px solid var(--border); display: none;">
         Loaded: <span id="loaded-count" style="color:var(--primary)">0</span> / <span id="total-count" style="color:var(--success)">0</span>
       </div>
@@ -189,8 +183,8 @@
     </div>
   </main>
 
-  <script src="/static/app.js?v=department-team-filters-20261024"></script>
-  <script src="/static/stage_form.js?v=task360-scoreboard-pastel-20261023-v2"></script>
-  <script src="/static/kpi1-analytics.js?v=department-team-filters-20261024"></script>
+  <script src="/static/app.js?v=department-team-load-all-20261024-v1"></script>
+  <script src="/static/stage_form.js?v=task360-load-all-rows-20261024-v1"></script>
+  <script src="/static/kpi1-analytics.js?v=department-team-load-all-20261024-v1"></script>
 </body>
 </html>
