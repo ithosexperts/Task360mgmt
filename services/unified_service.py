@@ -2,17 +2,18 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+import json
 import re
 from typing import Any
 
-from services.sql_service import load_records
+from services.sql_service import load_records, load_department_team_lookups
 
 KPI1_HEADERS = [
     "Record #", "FMS Name", "Stage Name", "Lead Time", "Planned", "Doer Name",
     "Actual", "Delay Hours", "Task Status", "KPI Month", "Week No.", "Day No",
     "KPI01 Score", "KPI01 Factored Score", "Presence Factor", "App ID", "Stage No",
     "KPI Year", "Doer Code", "Manager Name", "Manager Chain", "KPI Record Key",
-    "Raw KPI01 Status",
+    "Raw KPI01 Status", "Department", "Team Name",
 ]
 
 KPI2_HEADERS = [
@@ -22,7 +23,7 @@ KPI2_HEADERS = [
     "Weighted Task Completion Rate Score", "KPI Year", "App ID", "Stage No", "Doer Code",
     "KPI Record Key", "Manager Name", "Manager Chain", "Raw KPI02 Status",
     "Lead Time", "Manager Code", "KPI01 Score", "KPI 1 Factored Score",
-    "KPI 1 Task Status", "Task Completion Rate KPI Weightage",
+    "KPI 1 Task Status", "Task Completion Rate KPI Weightage", "Department", "Team Name",
 ]
 
 KPI2_FILTER_INDEXES = {
@@ -30,6 +31,7 @@ KPI2_FILTER_INDEXES = {
     "ACTUAL": 5, "TASK_STATUS": 6, "KPI_MONTH": 7, "WEEK_NO": 8,
     "DAY_NO": 9, "TOTAL_TASKS": 10, "DONE_TASKS": 11,
     "TASK_COMPLETION_RATE": 12, "KPI_WEIGHTAGE": 13, "WEIGHTED_SCORE": 14,
+    "DEPARTMENT": 29, "TEAM_NAME": 30,
 }
 
 
@@ -279,7 +281,19 @@ def _group_summaries(records: list[dict[str, Any]]) -> dict[tuple[str, ...], dic
     return summaries
 
 
-def kpi1_row(record: dict[str, Any]) -> list[Any]:
+def _org_filter_values(record: dict[str, Any], lookups: dict[str, Any]) -> tuple[str, str]:
+    """Resolve a KPI record's DoerCode to Department and a JSON list of team names."""
+    code = str(clean_null(record.get("DoerCode")) or "").strip().casefold()
+    canonical = code.lstrip("0") or "0" if code.isdigit() else code
+    departments = lookups.get("department_by_code") or {}
+    teams = lookups.get("teams_by_code") or {}
+    department = departments.get(code) or departments.get(f"__canonical__:{canonical}") or ""
+    team_names = teams.get(code) or teams.get(f"__canonical__:{canonical}") or []
+    # JSON array keeps one task row per RecordID while allowing filtering on any of its teams.
+    return str(department), json.dumps(list(team_names), ensure_ascii=False)
+
+
+def kpi1_row(record: dict[str, Any], lookups: dict[str, Any] | None = None) -> list[Any]:
     lead_time = fmt_lead_time(record.get("LeadTimeMins"))
     delay_hours = round(numeric(record.get("DelayMins")) / 60.0, 4)
     return [
@@ -293,10 +307,11 @@ def kpi1_row(record: dict[str, Any]) -> list[Any]:
         record.get("ScoreYear") or "", record.get("DoerCode") or "",
         record.get("ManagerName") or "", record.get("ManagerChain") or "",
         record.get("KPIRecordKey") or "", clean_null(record.get("TaskStatus_KPI01")) or "",
+        *_org_filter_values(record, lookups or {"department_by_code": {}, "teams_by_code": {}}),
     ]
 
 
-def kpi2_row(record: dict[str, Any], summaries: dict[tuple[str, ...], dict[str, int]]) -> list[Any]:
+def kpi2_row(record: dict[str, Any], summaries: dict[tuple[str, ...], dict[str, int]], lookups: dict[str, Any] | None = None) -> list[Any]:
     summary = summaries.get(_group_key(record), {"total": 1, "finished": 0})
     total = summary["total"] or 1
     finished = summary["finished"]
@@ -320,6 +335,7 @@ def kpi2_row(record: dict[str, Any], summaries: dict[tuple[str, ...], dict[str, 
         clean_null(record.get("KPI01_ScoreFactored")),
         kpi1_status(record),
         clean_null(record.get("PresenceFactor")),
+        *_org_filter_values(record, lookups or {"department_by_code": {}, "teams_by_code": {}}),
     ]
 
 
@@ -349,17 +365,20 @@ def _filter_dates(records: list[dict[str, Any]], start_date: str | None, end_dat
 
 def get_kpi1_payload(email: str, force: bool = False) -> dict[str, Any]:
     all_records = load_records(force=force)
+    lookups = load_department_team_lookups(force=force)
     partitions, role = partition_records(all_records, email)
     return {
         "email": email,
         "headers": KPI1_HEADERS,
-        "partitions": {key: [kpi1_row(r) for r in rows] for key, rows in partitions.items()},
+        "partitions": {key: [kpi1_row(r, lookups) for r in rows] for key, rows in partitions.items()},
         "roleInfo": role,
+        "organizationLookupWarnings": list(lookups.get("warnings", [])),
     }
 
 
 def get_kpi2_payload(email: str, start_date: str | None = None, end_date: str | None = None, force: bool = False) -> dict[str, Any]:
     all_records = load_records(force=force)
+    lookups = load_department_team_lookups(force=force)
     date_records = _filter_dates(all_records, start_date, end_date)
     partitions, role = partition_records(date_records, email)
     summaries = _group_summaries(date_records)
@@ -367,10 +386,11 @@ def get_kpi2_payload(email: str, start_date: str | None = None, end_date: str | 
         "email": email,
         "headers": KPI2_HEADERS,
         "filterIndexes": dict(KPI2_FILTER_INDEXES),
-        "partitions": {key: [kpi2_row(r, summaries) for r in rows] for key, rows in partitions.items()},
+        "partitions": {key: [kpi2_row(r, summaries, lookups) for r in rows] for key, rows in partitions.items()},
         "roleInfo": role,
         "stats": {"totalSystemRecords": len(all_records), "loadedRecords": len(date_records)},
         "faultyData": [],
+        "organizationLookupWarnings": list(lookups.get("warnings", [])),
     }
 
 
