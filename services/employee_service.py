@@ -7,9 +7,9 @@ import threading
 import time
 from typing import Any
 
-from services.api_service import fetch_table, api_configuration
+from services.api_service import fetch_table, api_configuration, current_api_base_name
 
-_EMPLOYEE_CACHE: dict[str, Any] = {"fetched_at": 0.0, "rows": {}}
+_EMPLOYEE_CACHE: dict[str, Any] = {"entries": {}}
 _EMPLOYEE_CACHE_LOCK = threading.Lock()
 
 
@@ -42,9 +42,11 @@ def read_employee_master(force: bool = False) -> dict[str, dict[str, Any]]:
     """Read employee rows via the shared API and normalize role fields."""
     ttl = max(0, int(os.getenv("VM_EMPLOYEE_CACHE_SECONDS", "300")))
     now = time.time()
+    cache_key = current_api_base_name()
     with _EMPLOYEE_CACHE_LOCK:
-        cached = _EMPLOYEE_CACHE.get("rows") or {}
-        if not force and cached and now - _EMPLOYEE_CACHE["fetched_at"] < ttl:
+        entry = (_EMPLOYEE_CACHE.get("entries") or {}).get(cache_key) or {}
+        cached = entry.get("rows") or {}
+        if not force and cached and now - entry.get("fetched_at", 0.0) < ttl:
             return {key: dict(value) for key, value in cached.items()}
 
     table = _table_name()
@@ -59,8 +61,6 @@ def read_employee_master(force: bool = False) -> dict[str, dict[str, Any]]:
             "EmployeeEmail", "EmployeeEmailID", "OfficialEmail", "WorkEmail", "LoginEmail",
         )
         email = str(email_value or "").strip().casefold()
-        if not email:
-            continue
 
         name = _value(raw, "EmployeeName", "Employee Name", "Name", "FullName", "EmployeeFullName", "EmpName")
         code = _value(raw, "EmployeeCode", "Employee Code", "EmpCode", "Employee ID", "EmployeeID", "EmpID", "Code")
@@ -77,7 +77,11 @@ def read_employee_master(force: bool = False) -> dict[str, dict[str, Any]]:
         elif role_id_string in manager_ids and rights.casefold() not in {"admin", "administrator", "superadmin", "super admin"}:
             rights = "Manager"
 
-        result[email] = {
+        employee_code = str(code or "").strip()
+        if not email and not employee_code:
+            continue
+        key = email or ("__code__:" + _canonical(employee_code))
+        result[key] = {
             "email": email,
             "employeeName": str(name or "").strip(),
             "employeeCode": str(code or "").strip(),
@@ -94,8 +98,7 @@ def read_employee_master(force: bool = False) -> dict[str, dict[str, Any]]:
         }
 
     with _EMPLOYEE_CACHE_LOCK:
-        _EMPLOYEE_CACHE["rows"] = result
-        _EMPLOYEE_CACHE["fetched_at"] = now
+        _EMPLOYEE_CACHE.setdefault("entries", {})[cache_key] = {"rows": result, "fetched_at": now}
     return {key: dict(value) for key, value in result.items()}
 
 
@@ -112,31 +115,42 @@ def employee_sql_status() -> dict[str, Any]:
     }
 
 
-def detect_roles(email: str, employee_master: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    email = str(email or "").strip().casefold()
-    emp = employee_master.get(email, {}) if isinstance(employee_master, dict) else {}
+def find_employee(identifier: str, employee_master: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    """Resolve an employee by trusted email or EmployeeCode (case/space insensitive)."""
+    needle = str(identifier or "").strip().casefold()
+    if not needle or not isinstance(employee_master, dict):
+        return None
+    direct = employee_master.get(needle)
+    if isinstance(direct, dict):
+        return dict(direct)
+    for key, emp in employee_master.items():
+        if not isinstance(emp, dict):
+            continue
+        if str(key or "").strip().casefold() == needle or str(emp.get("email") or "").strip().casefold() == needle:
+            return dict(emp)
+        if str(emp.get("employeeCode") or "").strip().casefold() == needle:
+            return dict(emp)
+    return None
+
+
+def detect_roles(identifier: str, employee_master: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Derive permissions from VM_EmployeeMaster; never from browser-supplied email."""
+    emp = find_employee(identifier, employee_master) or {}
     rights = str(emp.get("rights", emp.get("role", "")) or "").casefold().strip()
-    compact_rights = re.sub(r"[^a-z0-9]", "", rights)
-    is_admin = compact_rights in {"admin", "administrator", "superadmin", "systemadmin"}
-
+    department_key = re.sub(r"[^a-z0-9]", "", str(emp.get("department", "") or "").casefold())
+    # Task 360's explicit all-record access rule is department-based.
+    is_admin = department_key in {"mdo", "management"}
     manager_flag = re.sub(r"[^a-z0-9]", "", str(emp.get("isManagerFlag", "") or "").casefold())
-    flag_says_manager = manager_flag in {"1", "y", "yes", "true", "t", "manager"}
-    own_code = str(emp.get("employeeCode", "") or "").strip().casefold()
-    is_manager = is_admin or flag_says_manager or rights in {"manager", "team manager", "supervisor", "lead", "team lead"}
-    if not is_manager:
-        for user in employee_master.values():
-            manager_email = str(user.get("managerEmail", "") or "").strip().casefold()
-            manager_code = str(user.get("managerCode", "") or "").strip().casefold()
-            if (manager_email and manager_email == email) or (own_code and manager_code == own_code):
-                is_manager = True
-                break
-
+    # The VM_EmployeeMaster flag is authoritative. Do not infer manager access
+    # just because rows happen to point at this employee.
+    is_manager = manager_flag in {"1", "y", "yes", "true", "t", "manager"}
     return {
         "isAdmin": is_admin,
         "isManager": is_manager,
         "isDoer": True,
-        "email": email,
+        "email": str(emp.get("email") or ""),
         "employeeName": emp.get("employeeName", ""),
         "managerName": emp.get("manager", ""),
         "employeeCode": emp.get("employeeCode", ""),
+        "department": emp.get("department", ""),
     }
