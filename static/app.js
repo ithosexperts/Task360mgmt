@@ -570,7 +570,7 @@ function renderCharts() {
   const data = computeFilteredData();
   const css = getComputedStyle(document.documentElement);
   const colGreen = css.getPropertyValue('--chart-green').trim(); const colRed = css.getPropertyValue('--chart-red').trim();
-  const colBlue = css.getPropertyValue('--chart-blue').trim(); const pendingColor = '#8FB8FF'; const textCol = css.getPropertyValue('--text').trim();
+  const colBlue = css.getPropertyValue('--chart-blue').trim(); const pendingColor = '#7F5D99'; const textCol = css.getPropertyValue('--text').trim();
 
   if (statusDoughnutChartInstance) statusDoughnutChartInstance.destroy();
   let totalFinished = 0, totalDeferred = 0, totalAwaited = 0;
