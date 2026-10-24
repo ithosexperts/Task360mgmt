@@ -43,19 +43,6 @@
     return planned && Date.now() > planned.getTime() ? 'Pending' : 'Planned';
   }
 
-  function isWithinSharedDateRange(row) {
-    const planned = parseTaskDateValue(cell(row, 'PLANNED'));
-    const startValue = byId('start-date')?.value || '';
-    const endValue = byId('end-date')?.value || '';
-    if (!startValue && !endValue) return true;
-    if (!planned) return false;
-    const start = startValue ? new Date(`${startValue}T00:00:00`) : null;
-    const end = endValue ? new Date(`${endValue}T23:59:59.999`) : null;
-    if (start && planned < start) return false;
-    if (end && planned > end) return false;
-    return true;
-  }
-
   function buildIndexes(headers) {
     const map = {};
     headers.forEach((header, i) => {
@@ -159,7 +146,6 @@
       rows = rows.filter(row => state.kpi1StatusFilter.has(String(row[statusIndex] ?? '').trim()));
     }
     if (state.scoreboardStatus) rows = rows.filter(row => genericTaskStatus(row) === state.scoreboardStatus);
-    rows = rows.filter(isWithinSharedDateRange);
     if (state.drill.status) rows = rows.filter(row => statusBucket(row) === state.drill.status);
     if (state.drill.fms) rows = rows.filter(row => String(cell(row, 'FMS') || '').trim() === state.drill.fms);
     if (state.drill.stage) rows = rows.filter(row => String(cell(row, 'STAGE') || '').trim() === state.drill.stage);
@@ -473,7 +459,6 @@
     state.scoreboardStatus = event.detail?.scoreboardStatus || null;
     renderAll();
   });
-  ['start-date', 'end-date'].forEach(id => byId(id)?.addEventListener('change', renderAll));
   byId('kpi1-reset-filters-btn')?.addEventListener('click', window.resetKpi1Filters);
   byId('kpi1-drill-back')?.addEventListener('click', () => { resetDrill(); renderAll(); });
   byId('kpi1-ld-drill-back')?.addEventListener('click', () => { state.leadDrill = { fms: null, stage: null }; renderAll(); });
