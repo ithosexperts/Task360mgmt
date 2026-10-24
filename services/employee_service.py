@@ -134,15 +134,26 @@ def find_employee(identifier: str, employee_master: dict[str, dict[str, Any]]) -
 
 
 def detect_roles(identifier: str, employee_master: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    """Derive permissions from VM_EmployeeMaster; never from browser-supplied email."""
+    """Derive Task 360 access from trusted VM_EmployeeMaster fields.
+
+    Admin: RoleID in EMPLOYEE_ADMIN_ROLE_IDS (defaults to RoleID 1), OR
+           Department is MDO or Management.
+    Manager: IsManager is Y/true. Managers can switch between My Team and Me.
+    User: all other matched employees get Me access, even if they have no rows.
+    """
     emp = find_employee(identifier, employee_master) or {}
-    rights = str(emp.get("rights", emp.get("role", "")) or "").casefold().strip()
     department_key = re.sub(r"[^a-z0-9]", "", str(emp.get("department", "") or "").casefold())
-    # Task 360's explicit all-record access rule is department-based.
-    is_admin = department_key in {"mdo", "management"}
+    admin_ids = _role_id_set("EMPLOYEE_ADMIN_ROLE_IDS", "1")
+    role_id = str(emp.get("roleId", emp.get("RoleID", "")) or "").strip().casefold()
+    # SQL drivers can return an integer RoleID as 1 or as 1.0; treat both alike.
+    if role_id.endswith(".0") and role_id[:-2].isdigit():
+        role_id = role_id[:-2]
+    normalized_admin_ids = {
+        (value[:-2] if value.endswith(".0") and value[:-2].isdigit() else value)
+        for value in admin_ids
+    }
+    is_admin = role_id in normalized_admin_ids or department_key in {"mdo", "management"}
     manager_flag = re.sub(r"[^a-z0-9]", "", str(emp.get("isManagerFlag", "") or "").casefold())
-    # The VM_EmployeeMaster flag is authoritative. Do not infer manager access
-    # just because rows happen to point at this employee.
     is_manager = manager_flag in {"1", "y", "yes", "true", "t", "manager"}
     return {
         "isAdmin": is_admin,
@@ -153,4 +164,5 @@ def detect_roles(identifier: str, employee_master: dict[str, dict[str, Any]]) ->
         "managerName": emp.get("manager", ""),
         "employeeCode": emp.get("employeeCode", ""),
         "department": emp.get("department", ""),
+        "roleId": emp.get("roleId", ""),
     }
