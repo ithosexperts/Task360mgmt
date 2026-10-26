@@ -471,18 +471,99 @@ header.card {
   background: linear-gradient(110deg, rgba(154,177,255,.34), rgba(173,231,221,.22) 53%, rgba(255,190,168,.24));
   border-bottom: 1px solid rgba(139,153,218,.35);
 }
-.task360-pane-viewport { min-width: 0; }
-.task360-task-viewport { overflow: hidden; }
+.task360-pane-scroll-shell {
+  position: relative;
+  min-width: 0;
+  max-height: min(62vh, 700px);
+}
+.task360-pane-viewport {
+  min-width: 0;
+  max-height: min(62vh, 700px);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(91,104,170,.40) rgba(232,235,250,.45);
+}
+.task360-task-viewport {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
 .task360-kpi-viewport {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
   scrollbar-color: rgba(91,104,170,.58) rgba(232,235,250,.65);
 }
-.task360-kpi-viewport::-webkit-scrollbar { height: 12px; }
+.task360-merged-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+.task360-kpi-scroll-controls {
+  position: absolute;
+  z-index: 12;
+  inset: 0;
+  pointer-events: none;
+}
+.task360-kpi-scroll-controls[hidden] { display: none !important; }
+.task360-kpi-scroll-arrow {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.9);
+  border-radius: 12px;
+  color: #075be8;
+  background: rgba(255,255,255,.90);
+  box-shadow: 0 4px 16px rgba(30,86,202,.22);
+  font-size: 2rem;
+  font-weight: 850;
+  line-height: 1;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-50%) scale(.94);
+  transition: opacity .16s ease, transform .16s ease, background .16s ease, visibility .16s ease;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.task360-kpi-scroll-arrow--left { left: 8px; }
+.task360-kpi-scroll-arrow--right { right: 8px; }
+.task360-pane:hover .task360-kpi-scroll-arrow,
+.task360-pane:focus-within .task360-kpi-scroll-arrow {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(-50%) scale(1);
+}
+.task360-kpi-scroll-arrow:hover:not(:disabled) {
+  color: #fff;
+  background: #145fe8;
+  box-shadow: 0 6px 18px rgba(30,86,202,.34);
+}
+.task360-kpi-scroll-arrow:disabled {
+  color: #7894c9;
+  background: rgba(244,247,255,.84);
+  box-shadow: none;
+  cursor: default;
+  opacity: .48;
+}
+.task360-kpi-scroll-arrow:focus-visible {
+  outline: 3px solid rgba(20,95,232,.35);
+  outline-offset: 2px;
+}
+.task360-kpi-viewport::-webkit-scrollbar { width: 9px; height: 12px; }
 .task360-kpi-viewport::-webkit-scrollbar-track { background: rgba(226,231,250,.62); border-radius: 999px; }
-.task360-kpi-viewport::-webkit-scrollbar-thumb { background: linear-gradient(90deg, #9CAFF7, #7ACABD); border: 2px solid rgba(255,255,255,.72); border-radius: 999px; }
+.task360-kpi-viewport::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #9CAFF7, #7ACABD); border: 2px solid rgba(255,255,255,.72); border-radius: 999px; }
+.task360-task-viewport::-webkit-scrollbar { width: 8px; }
+.task360-task-viewport::-webkit-scrollbar-track { background: rgba(226,231,250,.50); }
+.task360-task-viewport::-webkit-scrollbar-thumb { background: rgba(125,142,194,.45); border-radius: 999px; }
 .task360-merged-table {
   border-collapse: separate;
   border-spacing: 0;
