@@ -5,7 +5,7 @@
   <title>Task 360 Management System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=task360-kpi-pane-toggle-20261026-v1">
+  <link rel="stylesheet" href="/static/style.css?v=task360-kpi-toolbar-fullwidth-20261026-v2">
   <style>
       /* Fix for Calendar Icon appearing dark on dark mode */
       input[type="date"] { color-scheme: light; }
@@ -148,7 +148,17 @@
       </section>
 
       <section id="database-section" class="card p-4 space-y-4">
-        <h2 class="text-xl font-semibold border-b pb-2" style="border-color:var(--border)">Task Records & KPI Breakdown</h2>
+        <div class="task360-breakdown-heading">
+          <h2 class="text-xl font-semibold" style="border-color:var(--border)">Task Records &amp; KPI Breakdown</h2>
+          <div id="task360-kpi-pane-controls" class="task360-kpi-pane-controls" role="group" aria-label="Show or hide KPI breakdown panels">
+            <button type="button" class="task360-kpi-control task360-kpi-control--kpi1" data-task360-pane-toggle="kpi1" aria-expanded="false" aria-controls="task360-kpi1-pane-content" aria-label="Expand KPI 1 Delay">
+              <span class="task360-kpi-control-icon" aria-hidden="true">◉</span><span>KPI 1 · Delay</span>
+            </button>
+            <button type="button" class="task360-kpi-control task360-kpi-control--kpi2" data-task360-pane-toggle="kpi2" aria-expanded="false" aria-controls="task360-kpi2-pane-content" aria-label="Expand KPI 2 Completion">
+              <span class="task360-kpi-control-icon" aria-hidden="true">◉</span><span>KPI 2 · Completion</span>
+            </button>
+          </div>
+        </div>
         <div id="table-body" class="record-table-wrap" aria-live="polite">
           <div class="record-list-message">Loading data...</div>
         </div>
@@ -192,7 +202,7 @@
     </div>
   </main>
 
-  <script src="/static/app.js?v=task360-kpi-pane-toggle-20261026-v1"></script>
+  <script src="/static/app.js?v=task360-kpi-toolbar-fullwidth-20261026-v2"></script>
   <script src="/static/stage_form.js?v=task360-load-all-rows-20261024-v1"></script>
   <script src="/static/kpi1-analytics.js?v=light-blue-pending-20261024-v1"></script>
   <script>
