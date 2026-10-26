@@ -5,7 +5,7 @@
   <title>Task 360 Management System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=task360-plain-task-table-20261024-v1">
+  <link rel="stylesheet" href="/static/style.css?v=task360-sticky-filters-scoreboard-20261026-v1">
   <style>
       /* Fix for Calendar Icon appearing dark on dark mode */
       input[type="date"] { color-scheme: light; }
@@ -13,46 +13,73 @@
 </head>
 <body>
 
-  <header class="p-4 flex flex-col gap-3 md:flex-row md:justify-between md:items-center card rounded-none sticky top-0 z-10">
-    <div class="flex items-center gap-3">
-      <div class="h-3 w-3 rounded-full" style="background:var(--primary);box-shadow:var(--glow)"></div>
-      <h1 class="text-2xl font-extrabold text-primary neon">Task 360 Management System</h1>
-    </div>
-    
-    <div class="flex flex-wrap items-center gap-3">
-      <div class="text-sm muted" id="user-email-display">Loading User...</div>
-      
-      <div id="loading-stats" class="text-xs font-bold px-3 py-1.5 rounded" style="background:var(--bg-card); border: 1px solid var(--border); display: none;">
-        Loaded: <span id="loaded-count" style="color:var(--primary)">0</span> / <span id="total-count" style="color:var(--success)">0</span>
+  <div id="task360-sticky-area" class="task360-sticky-area">
+    <header class="task360-page-header p-4 flex flex-col gap-3 md:flex-row md:justify-between md:items-center card rounded-none">
+      <div class="task360-title-view-group flex flex-col gap-3 md:flex-row md:items-center md:gap-5">
+        <div class="flex items-center gap-3 task360-title-group">
+          <div class="h-3 w-3 rounded-full" style="background:var(--primary);box-shadow:var(--glow)"></div>
+          <h1 class="text-2xl font-extrabold text-primary neon">Task 360 Management System</h1>
+        </div>
+        <div class="task360-header-views flex flex-wrap items-center gap-2" aria-label="Dashboard view">
+          <span class="text-xs muted">View:</span>
+          <button id="tab-admin" class="mode-tab">Admin</button>
+          <button id="tab-myteam" class="mode-tab">My Team</button>
+          <button id="tab-me" class="mode-tab">Me</button>
+          <button id="tab-faulty" class="mode-tab text-danger" style="display:none; border-color:var(--danger)">Faulty Data ⚠️</button>
+        </div>
       </div>
-      
-      <button id="refresh-button" class="btn">Refresh Data</button>
-    </div>
-  </header>
 
-  <section class="p-4" id="filter-section-card">
-    <div class="card p-3 flex flex-wrap gap-2 items-center justify-between">
-      <div class="flex gap-2 items-center">
-        <span class="text-xs muted">View:</span>
-        <button id="tab-admin"  class="mode-tab">Admin</button>
-        <button id="tab-myteam" class="mode-tab">My Team</button>
-        <button id="tab-me"     class="mode-tab">Me</button>
-        <button id="tab-faulty" class="mode-tab text-danger" style="display:none; border-color:var(--danger)">Faulty Data ⚠️</button>
+      <div class="task360-header-actions flex flex-wrap items-center gap-3">
+        <div class="text-sm muted" id="user-email-display">Loading User...</div>
+        <div id="loading-stats" class="text-xs font-bold px-3 py-1.5 rounded" style="background:var(--bg-card); border: 1px solid var(--border); display: none;">
+          Loaded: <span id="loaded-count" style="color:var(--primary)">0</span> / <span id="total-count" style="color:var(--success)">0</span>
+        </div>
+        <button id="toggle-filters-scoreboard" class="btn task360-collapse-toggle" type="button" aria-expanded="true" aria-controls="filter-section-card task360-sticky-scoreboard" onclick="toggleTask360FilterArea()" title="Expand or collapse filters and status scoreboard">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 14 6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span id="toggle-filters-scoreboard-label">Collapse Filters &amp; Scoreboard</span>
+        </button>
+        <button id="refresh-button" class="btn">Refresh Data</button>
       </div>
-      
-      <div class="flex items-center gap-3">
+    </header>
+
+    <section class="task360-filter-section p-4" id="filter-section-card">
+      <div class="task360-filter-tools-row card p-2 flex flex-wrap gap-2 items-center justify-between">
         <div id="drill-breadcrumb" class="flex flex-wrap gap-2 items-center text-xs"></div>
-        <button id="reset-filters-btn" class="btn btn-clear p-1.5 text-danger border-danger hover:bg-danger/10" title="Reset All Filters" style="border-radius: 8px;">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+        <button id="reset-filters-btn" class="btn btn-clear p-1.5 text-danger border-danger hover:bg-danger/10" title="Reset All Filters" aria-label="Reset all filters" style="border-radius:8px;">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
         </button>
       </div>
-    </div>
-    
-    <div class="mt-3 card p-3" id="multi-select-container">
-      <div class="task360-filter-heading"><strong>Shared Filters + KPI Status</strong><span class="muted">Common filters apply to both KPIs; KPI 1 Status and KPI 2 Status stay separate</span></div>
-      <div id="filters-below-views" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-10 gap-3"></div>
-    </div>
-  </section>
+
+      <div class="mt-2 card p-3" id="multi-select-container">
+        <div class="task360-filter-heading"><strong>Shared Filters + KPI Status</strong><span class="muted">Common filters apply to both KPIs; KPI 1 Status and KPI 2 Status stay separate</span></div>
+        <div id="filters-below-views" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-10 gap-3"></div>
+      </div>
+    </section>
+
+    <section id="task360-sticky-scoreboard" class="task360-sticky-scoreboard" aria-labelledby="task360-sticky-scoreboard-title">
+      <div class="task360-sticky-scoreboard-heading">
+        <h2 id="task360-sticky-scoreboard-title">Task Records &amp; KPI Overview</h2>
+      </div>
+      <div id="task-status-scoreboard" class="task360-status-scoreboard" role="group" aria-label="Filter tasks by status">
+        <button type="button" class="task360-status-score-card task360-status-all" data-task-status-score="All" aria-pressed="true">
+          <span class="task360-status-score-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h8M8 17h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+          <span class="task360-status-score-copy"><span class="task360-status-score-label">All</span><strong id="status-count-all">0</strong><small>All matching tasks</small></span>
+        </button>
+        <button type="button" class="task360-status-score-card task360-status-planned" data-task-status-score="Planned" aria-pressed="false">
+          <span class="task360-status-score-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="5" width="17" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M7.5 3.5v4M16.5 3.5v4M4 9.5h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 13h3M8 16h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+          <span class="task360-status-score-copy"><span class="task360-status-score-label">Planned</span><strong id="status-count-planned">0</strong><small>Planned time not crossed</small></span>
+        </button>
+        <button type="button" class="task360-status-score-card task360-status-pending" data-task-status-score="Pending" aria-pressed="false">
+          <span class="task360-status-score-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="task360-status-score-copy"><span class="task360-status-score-label">Pending</span><strong id="status-count-pending">0</strong><small>Planned time has passed</small></span>
+        </button>
+        <button type="button" class="task360-status-score-card task360-status-complete" data-task-status-score="Complete" aria-pressed="false">
+          <span class="task360-status-score-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="m7.5 12.3 3 3 6-6.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="task360-status-score-copy"><span class="task360-status-score-label">Complete</span><strong id="status-count-complete">0</strong><small>Finished or deferred</small></span>
+        </button>
+      </div>
+    </section>
+  </div>
 
   <main class="p-6 space-y-6">
     <div id="main-dashboard-content" class="space-y-6">
@@ -122,24 +149,6 @@
 
       <section id="database-section" class="card p-4 space-y-4">
         <h2 class="text-xl font-semibold border-b pb-2" style="border-color:var(--border)">Task Records & KPI Breakdown</h2>
-        <div id="task-status-scoreboard" class="task360-status-scoreboard" role="group" aria-label="Filter tasks by status">
-          <button type="button" class="task360-status-score-card task360-status-all" data-task-status-score="All" aria-pressed="true">
-            <span class="task360-status-score-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h8M8 17h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
-            <span class="task360-status-score-copy"><span class="task360-status-score-label">All</span><strong id="status-count-all">0</strong><small>All matching tasks</small></span>
-          </button>
-          <button type="button" class="task360-status-score-card task360-status-planned" data-task-status-score="Planned" aria-pressed="false">
-            <span class="task360-status-score-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="5" width="17" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M7.5 3.5v4M16.5 3.5v4M4 9.5h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 13h3M8 16h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
-            <span class="task360-status-score-copy"><span class="task360-status-score-label">Planned</span><strong id="status-count-planned">0</strong><small>Planned time not crossed</small></span>
-          </button>
-          <button type="button" class="task360-status-score-card task360-status-pending" data-task-status-score="Pending" aria-pressed="false">
-            <span class="task360-status-score-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-            <span class="task360-status-score-copy"><span class="task360-status-score-label">Pending</span><strong id="status-count-pending">0</strong><small>Planned time has passed</small></span>
-          </button>
-          <button type="button" class="task360-status-score-card task360-status-complete" data-task-status-score="Complete" aria-pressed="false">
-            <span class="task360-status-score-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="m7.5 12.3 3 3 6-6.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-            <span class="task360-status-score-copy"><span class="task360-status-score-label">Complete</span><strong id="status-count-complete">0</strong><small>Finished or deferred</small></span>
-          </button>
-        </div>
         <div id="table-body" class="record-table-wrap" aria-live="polite">
           <div class="record-list-message">Loading data...</div>
         </div>
@@ -186,5 +195,28 @@
   <script src="/static/app.js?v=awaited-purple-readable-90pct-20261024-v3"></script>
   <script src="/static/stage_form.js?v=task360-load-all-rows-20261024-v1"></script>
   <script src="/static/kpi1-analytics.js?v=light-blue-pending-20261024-v1"></script>
+  <script>
+    function toggleTask360FilterArea() {
+      const stickyArea = document.getElementById('task360-sticky-area');
+      const toggleButton = document.getElementById('toggle-filters-scoreboard');
+      const label = document.getElementById('toggle-filters-scoreboard-label');
+      if (!stickyArea || !toggleButton || !label) return;
+
+      const isCollapsed = stickyArea.classList.toggle('is-collapsed');
+      toggleButton.setAttribute('aria-expanded', String(!isCollapsed));
+      label.textContent = isCollapsed ? 'Expand Filters & Scoreboard' : 'Collapse Filters & Scoreboard';
+    }
+
+    // The faulty-data view never displayed the status scoreboard before it was moved into the sticky band.
+    // Preserve that behavior without changing the existing dashboard application code.
+    window.addEventListener('load', () => {
+      const stickyArea = document.getElementById('task360-sticky-area');
+      if (!stickyArea) return;
+      document.getElementById('tab-faulty')?.addEventListener('click', () => stickyArea.classList.add('is-faulty-view'));
+      ['tab-admin', 'tab-myteam', 'tab-me'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', () => stickyArea.classList.remove('is-faulty-view'));
+      });
+    });
+  </script>
 </body>
 </html>
