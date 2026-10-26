@@ -737,6 +737,10 @@ function renderTable(data) {
         const collapsed = window.task360KpiPaneCollapsed[key] !== false;
         el.classList.toggle('is-collapsed', collapsed);
         el.style.display = collapsed ? 'none' : '';
+        if (!collapsed && taskViewport) {
+          const paneViewport = el.querySelector('.task360-pane-viewport');
+          if (paneViewport) paneViewport.scrollTop = taskViewport.scrollTop;
+        }
       });
 
       const taskColsEls = layout.querySelectorAll('.task360-task-table colgroup col');
@@ -777,6 +781,7 @@ function renderTable(data) {
         button.title = `${expanded ? 'Collapse' : 'Expand'} ${label}`;
         button.classList.toggle('is-active', expanded);
       });
+      layout.querySelectorAll('.task360-pane').forEach(pane => pane._task360UpdateScrollButtons?.());
     };
     const panes = [
       { key: 'task', title: 'Task Details & Generic KPI Fields', cols: taskCols, className: 'task360-pane task360-task-pane', width: taskTableWidth, tableWidth: taskTableWidth },
@@ -877,11 +882,75 @@ function renderTable(data) {
       tbody.appendChild(fragment);
       table.append(thead, tbody);
       viewport.appendChild(table);
-      paneEl.appendChild(viewport);
+      const scrollShell = document.createElement('div');
+      scrollShell.className = `task360-pane-scroll-shell task360-pane-scroll-shell--${pane.key}`;
+      scrollShell.appendChild(viewport);
+
+      if (pane.key === 'kpi1' || pane.key === 'kpi2') {
+        const scrollControls = document.createElement('div');
+        scrollControls.className = 'task360-kpi-scroll-controls';
+        scrollControls.setAttribute('role', 'group');
+        scrollControls.setAttribute('aria-label', `Scroll ${pane.title} columns`);
+
+        const makeScrollButton = (direction, symbol, label) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = `task360-kpi-scroll-arrow task360-kpi-scroll-arrow--${direction}`;
+          button.textContent = symbol;
+          button.setAttribute('aria-label', label);
+          button.title = label;
+          button.addEventListener('click', () => {
+            const maxScroll = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+            const distance = Math.max(180, Math.round(viewport.clientWidth * 0.72));
+            const target = direction === 'left'
+              ? Math.max(0, viewport.scrollLeft - distance)
+              : Math.min(maxScroll, viewport.scrollLeft + distance);
+            viewport.scrollTo({ left: target, behavior: 'smooth' });
+          });
+          return button;
+        };
+
+        const leftButton = makeScrollButton('left', '‹', `Scroll ${pane.title} left`);
+        const rightButton = makeScrollButton('right', '›', `Scroll ${pane.title} right`);
+        scrollControls.append(leftButton, rightButton);
+        scrollShell.appendChild(scrollControls);
+
+        const updateScrollButtons = () => {
+          const maxScroll = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+          const current = viewport.scrollLeft;
+          scrollControls.hidden = maxScroll <= 2;
+          leftButton.disabled = current <= 2;
+          rightButton.disabled = current >= maxScroll - 2;
+          leftButton.setAttribute('aria-disabled', String(leftButton.disabled));
+          rightButton.setAttribute('aria-disabled', String(rightButton.disabled));
+        };
+        viewport.addEventListener('scroll', updateScrollButtons, { passive: true });
+        window.requestAnimationFrame(updateScrollButtons);
+        paneEl.addEventListener('mouseenter', updateScrollButtons);
+        paneEl.addEventListener('focusin', updateScrollButtons);
+        paneEl._task360UpdateScrollButtons = updateScrollButtons;
+      }
+
+      paneEl.appendChild(scrollShell);
       layout.appendChild(paneEl);
     });
     container.appendChild(layout);
     setMergedPaneLayout();
+
+    // All three panes use their own row viewport but share vertical scroll so records stay aligned.
+    const synchronizedViewports = Array.from(layout.querySelectorAll('.task360-pane-viewport'));
+    let isSyncingVerticalScroll = false;
+    synchronizedViewports.forEach(viewport => {
+      viewport.addEventListener('scroll', () => {
+        if (isSyncingVerticalScroll) return;
+        isSyncingVerticalScroll = true;
+        const top = viewport.scrollTop;
+        synchronizedViewports.forEach(peer => {
+          if (peer !== viewport && Math.abs(peer.scrollTop - top) > 1) peer.scrollTop = top;
+        });
+        isSyncingVerticalScroll = false;
+      }, { passive: true });
+    });
 
     // Keep row heights shared across panes so each task stays aligned while KPI groups scroll horizontally.
     const alignHeights = () => {
@@ -914,7 +983,10 @@ function renderTable(data) {
       };
     });
     setMergedPaneLayout();
-    window.requestAnimationFrame(alignHeights);
+    window.requestAnimationFrame(() => {
+      alignHeights();
+      layout.querySelectorAll('.task360-pane').forEach(pane => pane._task360UpdateScrollButtons?.());
+    });
     if (!window.__task360MergedResizeBound) {
       window.__task360MergedResizeBound = true;
       window.addEventListener('resize', () => {
@@ -933,6 +1005,7 @@ function renderTable(data) {
             const hs = sets.map(set => set[i]).filter(Boolean).map(el => el.getBoundingClientRect().height);
             if (hs.length) sets.forEach(set => { if (set[i]) set[i].style.height = `${Math.ceil(Math.max(...hs) / zoomScale)}px`; });
           }
+          active.querySelectorAll('.task360-pane').forEach(pane => pane._task360UpdateScrollButtons?.());
         });
       }, { passive: true });
     }
