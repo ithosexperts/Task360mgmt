@@ -719,6 +719,26 @@ function renderTable(data) {
 
     const layout = document.createElement('div');
     layout.className = 'task360-merged-layout';
+    if (!window.task360KpiPaneCollapsed) {
+      // Keep both KPI breakdown panes compact until the user opens them.
+      window.task360KpiPaneCollapsed = { kpi1: true, kpi2: true };
+    }
+    const setMergedPaneLayout = () => {
+      const kpi1Collapsed = Boolean(layout.querySelector('[data-pane="kpi1"]')?.classList.contains('is-collapsed'));
+      const kpi2Collapsed = Boolean(layout.querySelector('[data-pane="kpi2"]')?.classList.contains('is-collapsed'));
+      if (!kpi1Collapsed && !kpi2Collapsed) {
+        layout.style.removeProperty('grid-template-columns');
+        layout.style.removeProperty('width');
+        return;
+      }
+      const collapsedWidth = 180;
+      const kpi1Width = kpi1Collapsed ? collapsedWidth : 390;
+      const kpi2Width = kpi2Collapsed ? collapsedWidth : 530;
+      const kpi2Track = kpi2Collapsed ? `${kpi2Width}px` : 'minmax(530px, 1fr)';
+      const minWidth = 1300 + kpi1Width + kpi2Width + 20;
+      layout.style.gridTemplateColumns = `1300px ${kpi1Width}px ${kpi2Track}`;
+      layout.style.width = `max(100%, ${minWidth}px)`;
+    };
     const panes = [
       { key: 'task', title: 'Task Details & Generic KPI Fields', cols: taskCols, className: 'task360-pane task360-task-pane', width: 1280, tableWidth: 1280 },
       { key: 'kpi1', title: 'KPI 1 · Delay', cols: kpi1Cols, className: 'task360-pane task360-kpi-pane task360-kpi1-pane', width: 390, tableWidth: 465 },
@@ -729,17 +749,41 @@ function renderTable(data) {
       const paneEl = document.createElement('section');
       paneEl.className = pane.className;
       paneEl.dataset.pane = pane.key;
-      // KPI 2 takes the remaining horizontal space in the table layout.
-      // Task details and KPI 1 remain fixed-width; KPI 2 expands to the end
-      // of the parent card while its own columns can still scroll internally.
-      paneEl.style.width = pane.key === 'kpi2' ? 'auto' : `${pane.width}px`;
+      // Let the grid tracks control KPI pane widths so they can collapse to compact toggle tabs.
+      paneEl.style.width = pane.key === 'task' ? `${pane.width}px` : 'auto';
+      const startsCollapsed = pane.key !== 'task' && window.task360KpiPaneCollapsed[pane.key] !== false;
+      if (startsCollapsed) paneEl.classList.add('is-collapsed');
 
       const title = document.createElement('div');
       title.className = 'task360-pane-title';
-      title.textContent = pane.title;
+      if (pane.key === 'task') {
+        title.textContent = pane.title;
+      } else {
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'task360-pane-toggle';
+        toggle.setAttribute('aria-expanded', String(!startsCollapsed));
+        toggle.setAttribute('aria-controls', `task360-${pane.key}-pane-content`);
+        toggle.setAttribute('aria-label', `${startsCollapsed ? 'Expand' : 'Collapse'} ${pane.title}`);
+        toggle.title = `${startsCollapsed ? 'Expand' : 'Collapse'} ${pane.title}`;
+        const toggleLabel = document.createElement('span');
+        toggleLabel.textContent = pane.title;
+        toggle.appendChild(toggleLabel);
+        toggle.addEventListener('click', () => {
+          const nowCollapsed = paneEl.classList.toggle('is-collapsed');
+          window.task360KpiPaneCollapsed[pane.key] = nowCollapsed;
+          toggle.setAttribute('aria-expanded', String(!nowCollapsed));
+          toggle.setAttribute('aria-label', `${nowCollapsed ? 'Expand' : 'Collapse'} ${pane.title}`);
+          toggle.title = `${nowCollapsed ? 'Expand' : 'Collapse'} ${pane.title}`;
+          setMergedPaneLayout();
+          window.requestAnimationFrame(() => alignHeights());
+        });
+        title.appendChild(toggle);
+      }
       paneEl.appendChild(title);
 
       const viewport = document.createElement('div');
+      viewport.id = `task360-${pane.key}-pane-content`;
       viewport.className = pane.key === 'task' ? 'task360-pane-viewport task360-task-viewport' : 'task360-pane-viewport task360-kpi-viewport';
       viewport.setAttribute('aria-label', `${pane.title} columns`);
 
@@ -818,6 +862,7 @@ function renderTable(data) {
       layout.appendChild(paneEl);
     });
     container.appendChild(layout);
+    setMergedPaneLayout();
 
     // Keep row heights shared across panes so each task stays aligned while KPI groups scroll horizontally.
     const alignHeights = () => {
