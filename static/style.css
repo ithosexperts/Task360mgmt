@@ -734,3 +734,50 @@ body { font-size: 15px; line-height: 1.45; }
   .task360-sticky-scoreboard .task360-status-score-copy strong { font-size: 1.3rem; }
   .task360-collapse-toggle { white-space: normal; }
 }
+
+
+/* Expand/collapse controls for the two optional KPI breakdown table panes. */
+.task360-pane-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  line-height: 1.2;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+.task360-pane-toggle span { min-width: 0; }
+.task360-pane-toggle::after {
+  content: "−";
+  flex: 0 0 23px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 23px;
+  height: 23px;
+  border: 1px solid rgba(100,112,184,.34);
+  border-radius: 7px;
+  color: #49306d;
+  background: rgba(255,255,255,.70);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.task360-pane-toggle[aria-expanded="false"]::after { content: "+"; }
+.task360-pane-toggle:hover { color: #4e1f6e; }
+.task360-pane-toggle:focus-visible { outline: 3px solid rgba(112,135,235,.48); outline-offset: 3px; border-radius: 5px; }
+.task360-kpi-pane.is-collapsed .task360-pane-viewport { display: none; }
+.task360-kpi-pane.is-collapsed .task360-pane-title { padding: 8px 10px; }
+.task360-kpi-pane.is-collapsed .task360-pane-toggle { gap: 5px; font-size: .84rem; }
+@media (max-width: 800px) {
+  .task360-kpi-pane.is-collapsed .task360-pane-title { padding: 7px; }
+  .task360-kpi-pane.is-collapsed .task360-pane-toggle { font-size: .78rem; }
+}
