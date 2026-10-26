@@ -719,28 +719,67 @@ function renderTable(data) {
 
     const layout = document.createElement('div');
     layout.className = 'task360-merged-layout';
-    if (!window.task360KpiPaneCollapsed) {
-      // Keep both KPI breakdown panes compact until the user opens them.
+    if (!window.task360KpiPaneCollapsed || typeof window.task360KpiPaneCollapsed.kpi1 !== 'boolean' || typeof window.task360KpiPaneCollapsed.kpi2 !== 'boolean') {
+      // Both optional KPI panels start closed so Task Details can use the full width.
       window.task360KpiPaneCollapsed = { kpi1: true, kpi2: true };
     }
+    const taskTableWidth = taskCols.reduce((sum, col) => sum + col.width, 0);
+    const kpiPaneWidths = { kpi1: 390, kpi2: 530 };
     const setMergedPaneLayout = () => {
-      const kpi1Collapsed = Boolean(layout.querySelector('[data-pane="kpi1"]')?.classList.contains('is-collapsed'));
-      const kpi2Collapsed = Boolean(layout.querySelector('[data-pane="kpi2"]')?.classList.contains('is-collapsed'));
-      if (!kpi1Collapsed && !kpi2Collapsed) {
-        layout.style.removeProperty('grid-template-columns');
-        layout.style.removeProperty('width');
-        return;
+      const taskPane = layout.querySelector('[data-pane="task"]');
+      const taskViewport = layout.querySelector('.task360-task-viewport');
+      const taskTable = layout.querySelector('.task360-task-table');
+      const kpiPanes = ['kpi1', 'kpi2'].map(key => ({ key, el: layout.querySelector(`[data-pane="${key}"]`) }));
+      const openKpis = kpiPanes.filter(({ key }) => window.task360KpiPaneCollapsed[key] === false);
+
+      kpiPanes.forEach(({ key, el }) => {
+        if (!el) return;
+        const collapsed = window.task360KpiPaneCollapsed[key] !== false;
+        el.classList.toggle('is-collapsed', collapsed);
+        el.style.display = collapsed ? 'none' : '';
+      });
+
+      const taskColsEls = layout.querySelectorAll('.task360-task-table colgroup col');
+      if (!openKpis.length) {
+        // No KPI cards open: hide their tracks and let the generic task table fill the card.
+        layout.style.gridTemplateColumns = 'minmax(0, 1fr)';
+        layout.style.width = '100%';
+        layout.style.minWidth = '0';
+        if (taskPane) taskPane.style.width = '100%';
+        if (taskViewport) taskViewport.style.overflowX = 'hidden';
+        if (taskTable) taskTable.style.width = '100%';
+        taskColsEls.forEach((col, index) => {
+          const percent = taskCols[index] ? (taskCols[index].width / taskTableWidth) * 100 : 0;
+          col.style.width = `${percent.toFixed(5)}%`;
+        });
+      } else {
+        // When a KPI card is opened, preserve the familiar table and pane widths.
+        const tracks = [`${taskTableWidth}px`, ...openKpis.map(({ key }) => `${kpiPaneWidths[key]}px`)];
+        const totalWidth = taskTableWidth + openKpis.reduce((sum, { key }) => sum + kpiPaneWidths[key], 0) + (tracks.length - 1) * 10;
+        layout.style.gridTemplateColumns = tracks.join(' ');
+        layout.style.width = `max(100%, ${totalWidth}px)`;
+        layout.style.minWidth = '100%';
+        if (taskPane) taskPane.style.width = `${taskTableWidth}px`;
+        if (taskViewport) taskViewport.style.overflowX = 'hidden';
+        if (taskTable) taskTable.style.width = `${taskTableWidth}px`;
+        taskColsEls.forEach((col, index) => {
+          if (taskCols[index]) col.style.width = `${taskCols[index].width}px`;
+        });
       }
-      const collapsedWidth = 180;
-      const kpi1Width = kpi1Collapsed ? collapsedWidth : 390;
-      const kpi2Width = kpi2Collapsed ? collapsedWidth : 530;
-      const kpi2Track = kpi2Collapsed ? `${kpi2Width}px` : 'minmax(530px, 1fr)';
-      const minWidth = 1300 + kpi1Width + kpi2Width + 20;
-      layout.style.gridTemplateColumns = `1300px ${kpi1Width}px ${kpi2Track}`;
-      layout.style.width = `max(100%, ${minWidth}px)`;
+
+      // Keep header controls in sync even after pagination or filters rebuild the table.
+      document.querySelectorAll('[data-task360-pane-toggle]').forEach(button => {
+        const key = button.dataset.task360PaneToggle;
+        const expanded = window.task360KpiPaneCollapsed[key] === false;
+        const label = key === 'kpi1' ? 'KPI 1 · Delay' : 'KPI 2 · Completion';
+        button.setAttribute('aria-expanded', String(expanded));
+        button.setAttribute('aria-label', `${expanded ? 'Collapse' : 'Expand'} ${label}`);
+        button.title = `${expanded ? 'Collapse' : 'Expand'} ${label}`;
+        button.classList.toggle('is-active', expanded);
+      });
     };
     const panes = [
-      { key: 'task', title: 'Task Details & Generic KPI Fields', cols: taskCols, className: 'task360-pane task360-task-pane', width: 1280, tableWidth: 1280 },
+      { key: 'task', title: 'Task Details & Generic KPI Fields', cols: taskCols, className: 'task360-pane task360-task-pane', width: taskTableWidth, tableWidth: taskTableWidth },
       { key: 'kpi1', title: 'KPI 1 · Delay', cols: kpi1Cols, className: 'task360-pane task360-kpi-pane task360-kpi1-pane', width: 390, tableWidth: 465 },
       { key: 'kpi2', title: 'KPI 2 · Completion', cols: kpi2Cols, className: 'task360-pane task360-kpi-pane task360-kpi2-pane', width: 530, tableWidth: 950 },
     ];
@@ -752,34 +791,14 @@ function renderTable(data) {
       // Let the grid tracks control KPI pane widths so they can collapse to compact toggle tabs.
       paneEl.style.width = pane.key === 'task' ? `${pane.width}px` : 'auto';
       const startsCollapsed = pane.key !== 'task' && window.task360KpiPaneCollapsed[pane.key] !== false;
-      if (startsCollapsed) paneEl.classList.add('is-collapsed');
+      if (startsCollapsed) {
+        paneEl.classList.add('is-collapsed');
+        paneEl.style.display = 'none';
+      }
 
       const title = document.createElement('div');
       title.className = 'task360-pane-title';
-      if (pane.key === 'task') {
-        title.textContent = pane.title;
-      } else {
-        const toggle = document.createElement('button');
-        toggle.type = 'button';
-        toggle.className = 'task360-pane-toggle';
-        toggle.setAttribute('aria-expanded', String(!startsCollapsed));
-        toggle.setAttribute('aria-controls', `task360-${pane.key}-pane-content`);
-        toggle.setAttribute('aria-label', `${startsCollapsed ? 'Expand' : 'Collapse'} ${pane.title}`);
-        toggle.title = `${startsCollapsed ? 'Expand' : 'Collapse'} ${pane.title}`;
-        const toggleLabel = document.createElement('span');
-        toggleLabel.textContent = pane.title;
-        toggle.appendChild(toggleLabel);
-        toggle.addEventListener('click', () => {
-          const nowCollapsed = paneEl.classList.toggle('is-collapsed');
-          window.task360KpiPaneCollapsed[pane.key] = nowCollapsed;
-          toggle.setAttribute('aria-expanded', String(!nowCollapsed));
-          toggle.setAttribute('aria-label', `${nowCollapsed ? 'Expand' : 'Collapse'} ${pane.title}`);
-          toggle.title = `${nowCollapsed ? 'Expand' : 'Collapse'} ${pane.title}`;
-          setMergedPaneLayout();
-          window.requestAnimationFrame(() => alignHeights());
-        });
-        title.appendChild(toggle);
-      }
+      title.textContent = pane.title;
       paneEl.appendChild(title);
 
       const viewport = document.createElement('div');
@@ -885,6 +904,16 @@ function renderTable(data) {
         rowSets.forEach(set => { if (set[i]) set[i].style.height = `${cssHeight}px`; });
       }
     };
+    document.querySelectorAll('[data-task360-pane-toggle]').forEach(button => {
+      button.onclick = () => {
+        const key = button.dataset.task360PaneToggle;
+        if (!['kpi1', 'kpi2'].includes(key)) return;
+        window.task360KpiPaneCollapsed[key] = !window.task360KpiPaneCollapsed[key];
+        setMergedPaneLayout();
+        window.requestAnimationFrame(alignHeights);
+      };
+    });
+    setMergedPaneLayout();
     window.requestAnimationFrame(alignHeights);
     if (!window.__task360MergedResizeBound) {
       window.__task360MergedResizeBound = true;
