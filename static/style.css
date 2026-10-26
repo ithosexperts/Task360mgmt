@@ -736,48 +736,61 @@ body { font-size: 15px; line-height: 1.45; }
 }
 
 
-/* Expand/collapse controls for the two optional KPI breakdown table panes. */
-.task360-pane-toggle {
+/* KPI pane controls sit beside the Breakdown heading; closed panes consume no table width. */
+.task360-breakdown-heading {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  line-height: 1.2;
-  text-align: left;
-  white-space: normal;
-  cursor: pointer;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--border);
 }
-.task360-pane-toggle span { min-width: 0; }
-.task360-pane-toggle::after {
-  content: "−";
-  flex: 0 0 23px;
+.task360-breakdown-heading h2 {
+  margin: 0;
+  padding: 0;
+  border: 0 !important;
+  color: var(--text);
+  line-height: 1.25;
+}
+.task360-kpi-pane-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.task360-kpi-control {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 23px;
-  height: 23px;
-  border: 1px solid rgba(100,112,184,.34);
-  border-radius: 7px;
-  color: #49306d;
-  background: rgba(255,255,255,.70);
-  font-size: 1rem;
-  font-weight: 900;
-  line-height: 1;
+  gap: 9px;
+  min-height: 38px;
+  padding: 7px 15px;
+  border: 1px solid rgba(116, 91, 192, .52);
+  border-radius: 10px;
+  color: #4e1f6e;
+  background: linear-gradient(130deg, rgba(249,246,255,.98), rgba(237,233,255,.88));
+  box-shadow: 0 3px 10px rgba(66, 54, 132, .08);
+  font-size: .9rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, transform .15s ease;
 }
-.task360-pane-toggle[aria-expanded="false"]::after { content: "+"; }
-.task360-pane-toggle:hover { color: #4e1f6e; }
-.task360-pane-toggle:focus-visible { outline: 3px solid rgba(112,135,235,.48); outline-offset: 3px; border-radius: 5px; }
-.task360-kpi-pane.is-collapsed .task360-pane-viewport { display: none; }
-.task360-kpi-pane.is-collapsed .task360-pane-title { padding: 8px 10px; }
-.task360-kpi-pane.is-collapsed .task360-pane-toggle { gap: 5px; font-size: .84rem; }
+.task360-kpi-control--kpi2 {
+  color: #155f83;
+  border-color: rgba(54, 169, 211, .55);
+  background: linear-gradient(130deg, rgba(244,251,255,.98), rgba(224,246,255,.90));
+}
+.task360-kpi-control-icon { font-size: .95rem; line-height: 1; }
+.task360-kpi-control:hover { transform: translateY(-1px); box-shadow: 0 6px 15px rgba(66,54,132,.14); }
+.task360-kpi-control.is-active { color: #fff; border-color: #4e1f6e; background: linear-gradient(135deg, #4e1f6e, #6a4c93); box-shadow: 0 5px 14px rgba(78,31,110,.22); }
+.task360-kpi-control--kpi2.is-active { border-color: #1689b5; background: linear-gradient(135deg, #137fa8, #43adc9); box-shadow: 0 5px 14px rgba(19,127,168,.20); }
+.task360-kpi-control:focus-visible { outline: 3px solid rgba(112,135,235,.48); outline-offset: 3px; }
+.task360-kpi-pane.is-collapsed { display: none !important; }
+.task360-kpi-pane .task360-pane-title { min-height: 46px; }
 @media (max-width: 800px) {
-  .task360-kpi-pane.is-collapsed .task360-pane-title { padding: 7px; }
-  .task360-kpi-pane.is-collapsed .task360-pane-toggle { font-size: .78rem; }
+  .task360-breakdown-heading { align-items: flex-start; }
+  .task360-kpi-pane-controls { width: 100%; }
+  .task360-kpi-control { flex: 1 1 auto; padding: 8px 10px; font-size: .82rem; }
 }
