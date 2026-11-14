@@ -1,8 +1,9 @@
 """Transforms the merged SQL task rows into the two existing dashboard formats."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 import json
+import os
 import re
 from typing import Any
 
@@ -128,6 +129,63 @@ def parse_datetime(value: Any) -> datetime | None:
         return datetime.fromisoformat(s.replace("Z", "+00:00")).replace(tzinfo=None)
     except ValueError:
         return None
+
+
+def get_today_date() -> date:
+    """Return the current calendar date in the application timezone (default IST UTC+05:30)."""
+    tz_env = os.getenv("TASK360_TZ_OFFSET", "+05:30").strip()
+    try:
+        sign = -1 if tz_env.startswith("-") else 1
+        clean_tz = tz_env.lstrip("+-")
+        parts = clean_tz.split(":")
+        hours = int(parts[0])
+        minutes = int(parts[1]) if len(parts) > 1 else 0
+        tz = timezone(sign * timedelta(hours=hours, minutes=minutes))
+        return datetime.now(tz).date()
+    except Exception:
+        return datetime.now().date()
+
+
+def get_effective_timestamp(record: dict[str, Any]) -> datetime | None:
+    """Return the effective task timestamp.
+
+    - If ReleaseTS is populated (not null/empty), tasks are evaluated as per ReleaseTS.
+    - If ReleaseTS is null and PLTimeStamp is not null, tasks are evaluated as per PLTimeStamp.
+    - If both are null/empty, returns None.
+    """
+    rel = clean_null(record.get("ReleaseTS"))
+    if rel is not None and str(rel).strip() != "":
+        rel_dt = parse_datetime(rel)
+        if rel_dt is not None:
+            return rel_dt
+    pl = clean_null(record.get("PLTimeStamp"))
+    if pl is not None and str(pl).strip() != "":
+        return parse_datetime(pl)
+    return None
+
+
+def fmt_effective_timestamp(record: dict[str, Any]) -> str:
+    """Format the effective timestamp (ReleaseTS if populated, else PLTimeStamp) for display."""
+    rel = clean_null(record.get("ReleaseTS"))
+    if rel is not None and str(rel).strip() != "":
+        return fmt_date(rel)
+    return fmt_date(record.get("PLTimeStamp"))
+
+
+def is_task_current_or_pending(record: dict[str, Any], today: date | None = None) -> bool:
+    """Determine if a task should be shown based on its effective timestamp.
+
+    - If PLTimeStamp is not null and ReleaseTS is null -> evaluated as per PLTimeStamp.
+    - If ReleaseTS is not null -> evaluated as per ReleaseTS.
+    - In both cases, only today's tasks and pending/past tasks are shown.
+      Future tasks (effective date > today) are excluded in both cases.
+    """
+    effective_dt = get_effective_timestamp(record)
+    if effective_dt is None:
+        return True
+    if today is None:
+        today = get_today_date()
+    return effective_dt.date() <= today
 
 
 def is_finished(value: Any) -> bool:
@@ -303,7 +361,7 @@ def kpi1_row(record: dict[str, Any], lookups: dict[str, Any] | None = None) -> l
     delay_hours = round(numeric(record.get("DelayMins")) / 60.0, 4)
     return [
         _row_id(record), record.get("FMSName") or "", record.get("StageName") or "",
-        lead_time, fmt_date(record.get("PLTimeStamp")), record.get("DoerName") or "",
+        lead_time, fmt_effective_timestamp(record), record.get("DoerName") or "",
         fmt_date(record.get("ALTimeStamp")), delay_hours, kpi1_status(record),
         record.get("ScoreMonth") or "", record.get("ScoreWeekNo") or "",
         record.get("ScoreDayNo") or "", clean_null(record.get("KPI01_Score")),
@@ -325,7 +383,7 @@ def kpi2_row(record: dict[str, Any], summaries: dict[tuple[str, ...], dict[str, 
         rate = round((finished / total) * 100.0, 2)
     return [
         _row_id(record), record.get("FMSName") or "", record.get("StageName") or "",
-        fmt_date(record.get("PLTimeStamp")), record.get("DoerName") or "",
+        fmt_effective_timestamp(record), record.get("DoerName") or "",
         fmt_date(record.get("ALTimeStamp")), kpi2_status(record),
         record.get("ScoreMonth") or "", record.get("ScoreWeekNo") or "",
         record.get("ScoreDayNo") or "", summary["total"], finished, rate,
@@ -357,7 +415,7 @@ def _filter_dates(records: list[dict[str, Any]], start_date: str | None, end_dat
         return records
     result = []
     for record in records:
-        planned = parse_datetime(record.get("PLTimeStamp"))
+        planned = get_effective_timestamp(record)
         if planned is None:
             continue
         if start and planned < start:
@@ -370,6 +428,7 @@ def _filter_dates(records: list[dict[str, Any]], start_date: str | None, end_dat
 
 def get_kpi1_payload(identifier: str, force: bool = False) -> dict[str, Any]:
     all_records = load_records(force=force)
+    all_records = [r for r in all_records if is_task_current_or_pending(r)]
     lookups = load_department_team_lookups(force=force)
     partitions, role = partition_records(all_records, identifier)
     return {
@@ -382,12 +441,13 @@ def get_kpi1_payload(identifier: str, force: bool = False) -> dict[str, Any]:
 
 
 def get_kpi2_payload(identifier: str, start_date: str | None = None, end_date: str | None = None, force: bool = False) -> dict[str, Any]:
-    """Return every available row; legacy date arguments are intentionally ignored.
+    """Return available rows excluding future tasks; legacy date arguments are intentionally ignored.
 
     The dashboard no longer exposes a date-range picker, and old URLs that still
     include start_date/end_date must not silently restrict the records.
     """
     all_records = load_records(force=force)
+    all_records = [r for r in all_records if is_task_current_or_pending(r)]
     lookups = load_department_team_lookups(force=force)
     partitions, role = partition_records(all_records, identifier)
     summaries = _group_summaries(all_records)
@@ -407,6 +467,7 @@ def query_records(year: str | None = None, month: str | None = None, doer: str |
                   fms: str | None = None, stage: str | None = None, status: str | None = None,
                   identifier: str | None = None) -> list[dict[str, Any]]:
     records = load_records()
+    records = [r for r in records if is_task_current_or_pending(r)]
     if not identifier:
         return []
     partitions, role = partition_records(records, identifier)

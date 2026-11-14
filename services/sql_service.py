@@ -18,7 +18,7 @@ from services.api_service import fetch_table, api_configuration, current_api_bas
 REQUIRED_COLUMNS = [
     "KPIRecordKey", "InsertTS", "AppID", "RowID", "StageNo", "FMSName",
     "StageName", "DoerCode", "DoerName", "ScoreYear", "ScoreMonth",
-    "ScoreWeekNo", "ScoreDayNo", "PLTimeStamp", "LeadTimeMins",
+    "ScoreWeekNo", "ScoreDayNo", "PLTimeStamp", "ReleaseTS", "LeadTimeMins",
     "ALTimeStamp", "DelayMins", "PresenceFactor", "TaskStatus_KPI01",
     "KPI01_Score", "KPI01_ScoreFactored", "TaskStatus_KPI02", "KPI02_Score",
     "KPI02_ScoreFactored", "LastSyncTS", "KPIApplicable", "TaskGroupID",

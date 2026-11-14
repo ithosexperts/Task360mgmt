@@ -434,8 +434,31 @@ function toHours(val) {
       return 'pending';
     }
     
+    function parseTaskDateValue(value) {
+      if (value == null || String(value).trim() === '') return null;
+      const text = String(value).trim();
+      const native = new Date(text);
+      if (!Number.isNaN(native.getTime())) return native;
+      const match = text.match(/^(\d{1,2})[- ]([A-Za-z]{3,9})[- ](\d{4})(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+      if (!match) return null;
+      const months = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+      const month = months[match[2].slice(0,3).toLowerCase()];
+      if (month == null) return null;
+      const parsed = new Date(Number(match[3]), month, Number(match[1]), Number(match[4] || 0), Number(match[5] || 0), Number(match[6] || 0));
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    function isFutureTaskRow(row) {
+      const plannedIdx = FILTER_COLUMNS.PLANNED;
+      const planned = plannedIdx == null ? null : parseTaskDateValue(row[plannedIdx]);
+      if (!planned) return false;
+      const tomorrow = new Date();
+      tomorrow.setHours(24, 0, 0, 0);
+      return planned.getTime() >= tomorrow.getTime();
+    }
+
     function computeFilteredData(){
-      let data = ALL_DATA.slice();
+      let data = ALL_DATA.slice().filter(r => !isFutureTaskRow(r));
       for (const key in TOP_FILTERS){
         const sel = TOP_FILTERS[key];
         if (sel && sel.size) data = data.filter(r => sel.has(String(r[FILTER_COLUMNS[key]] ?? '').trim()));

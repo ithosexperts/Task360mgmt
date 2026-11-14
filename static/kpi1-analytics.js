@@ -134,8 +134,16 @@
     return selected.has(String(row[index] ?? '').trim());
   }
 
+  function isFutureTaskRow(row) {
+    const planned = parseTaskDateValue(cell(row, 'PLANNED'));
+    if (!planned) return false;
+    const tomorrow = new Date();
+    tomorrow.setHours(24, 0, 0, 0);
+    return planned.getTime() >= tomorrow.getTime();
+  }
+
   function filteredRows() {
-    let rows = state.allRows.slice();
+    let rows = state.allRows.slice().filter(r => !isFutureTaskRow(r));
     for (const key of SHARED_FILTER_KEYS) {
       const selected = state.topFilters[key];
       const index = state.indexes[key];

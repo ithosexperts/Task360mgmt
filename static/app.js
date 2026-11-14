@@ -333,11 +333,20 @@ function rowMatchesTopFilter(key, row, selected, idx) {
   return selected.has(String(row[idx] ?? '').trim());
 }
 
+function isFutureTaskRow(row) {
+  const plannedIdx = FILTER_COLUMNS.PLANNED;
+  const planned = plannedIdx == null ? null : parseTaskDateValue(row[plannedIdx]);
+  if (!planned) return false;
+  const tomorrow = new Date();
+  tomorrow.setHours(24, 0, 0, 0);
+  return planned.getTime() >= tomorrow.getTime();
+}
+
 function computeFilteredData(options = {}) {
   const ignoreTaskStatusFilter = Boolean(options.ignoreTaskStatusFilter);
   const ignoreScoreboardStatus = Boolean(options.ignoreScoreboardStatus);
   const ignoreDrills = Boolean(options.ignoreDrills);
-  let data = ALL_DATA.slice();
+  let data = ALL_DATA.slice().filter(r => !isFutureTaskRow(r));
   for (const key in TOP_FILTERS) {
     if (ignoreTaskStatusFilter && key === 'TASK_STATUS') continue;
     const selected = TOP_FILTERS[key];
