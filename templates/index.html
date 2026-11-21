@@ -11,9 +11,9 @@
       input[type="date"] { color-scheme: light; }
   </style>
 </head>
-<body>
+<body class="task360-filters-charts-collapsed">
 
-  <div id="task360-sticky-area" class="task360-sticky-area">
+  <div id="task360-sticky-area" class="task360-sticky-area is-collapsed">
     <header class="task360-page-header p-4 flex flex-col gap-3 md:flex-row md:justify-between md:items-center card rounded-none">
       <div class="task360-title-view-group flex flex-col gap-3 md:flex-row md:items-center md:gap-5">
         <div class="flex items-center gap-3 task360-title-group">
@@ -34,9 +34,9 @@
         <div id="loading-stats" class="text-xs font-bold px-3 py-1.5 rounded" style="background:var(--bg-card); border: 1px solid var(--border); display: none;">
           Loaded: <span id="loaded-count" style="color:var(--primary)">0</span> / <span id="total-count" style="color:var(--success)">0</span>
         </div>
-        <button id="toggle-filters-scoreboard" class="btn task360-collapse-toggle" type="button" aria-expanded="true" aria-controls="filter-section-card task360-sticky-scoreboard" onclick="toggleTask360FilterArea()" title="Expand or collapse filters and status scoreboard">
+        <button id="toggle-filters-scoreboard" class="btn task360-collapse-toggle" type="button" aria-expanded="false" aria-controls="filter-section-card kpi1-analytics-section kpi2-analytics-section" onclick="toggleTask360FilterArea()" title="Expand filters and KPI 1 &amp; 2 analytics charts">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 14 6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span id="toggle-filters-scoreboard-label">Collapse Filters &amp; Scoreboard</span>
+          <span id="toggle-filters-scoreboard-label">Expand Filters &amp; Charts</span>
         </button>
         <button id="refresh-button" class="btn">Refresh Data</button>
       </div>
@@ -150,12 +150,15 @@
       <section id="database-section" class="card p-4 space-y-4">
         <div class="task360-breakdown-heading">
           <h2 class="text-xl font-semibold" style="border-color:var(--border)">Task Records &amp; KPI Breakdown</h2>
-          <div id="task360-kpi-pane-controls" class="task360-kpi-pane-controls" role="group" aria-label="Show or hide KPI breakdown panels">
+          <div id="task360-kpi-pane-controls" class="task360-kpi-pane-controls" role="group" aria-label="Show or hide KPI breakdown panels and metadata columns">
             <button type="button" class="task360-kpi-control task360-kpi-control--kpi1" data-task360-pane-toggle="kpi1" aria-expanded="false" aria-controls="task360-kpi1-pane-content" aria-label="Expand KPI 1 Delay">
               <span class="task360-kpi-control-icon" aria-hidden="true">◉</span><span>KPI 1 · Delay</span>
             </button>
             <button type="button" class="task360-kpi-control task360-kpi-control--kpi2" data-task360-pane-toggle="kpi2" aria-expanded="false" aria-controls="task360-kpi2-pane-content" aria-label="Expand KPI 2 Completion">
               <span class="task360-kpi-control-icon" aria-hidden="true">◉</span><span>KPI 2 · Completion</span>
+            </button>
+            <button type="button" id="task360-toggle-extra-cols" class="task360-kpi-control task360-kpi-control--extra-cols" aria-expanded="false" aria-label="Expand Manager &amp; Metadata columns" title="Expand or collapse Manager Code, Manager Name, KPIRecord Key, Year, Month, Day, Presence Factor">
+              <span class="task360-kpi-control-icon" aria-hidden="true">◉</span><span id="task360-toggle-extra-cols-label">Manager &amp; Metadata</span>
             </button>
           </div>
         </div>
@@ -213,8 +216,23 @@
       if (!stickyArea || !toggleButton || !label) return;
 
       const isCollapsed = stickyArea.classList.toggle('is-collapsed');
+      document.body.classList.toggle('task360-filters-charts-collapsed', isCollapsed);
       toggleButton.setAttribute('aria-expanded', String(!isCollapsed));
-      label.textContent = isCollapsed ? 'Expand Filters & Scoreboard' : 'Collapse Filters & Scoreboard';
+      label.textContent = isCollapsed ? 'Expand Filters & Charts' : 'Collapse Filters & Charts';
+      toggleButton.title = isCollapsed ? 'Expand filters and KPI 1 & 2 analytics charts' : 'Collapse filters and KPI 1 & 2 analytics charts';
+
+      if (!isCollapsed) {
+        window.dispatchEvent(new Event('resize'));
+        if (typeof renderCharts === 'function') {
+          try { renderCharts(); } catch (e) { console.error('Chart rendering failed:', e); }
+        }
+        if (typeof window.renderKpi1All === 'function') {
+          try { window.renderKpi1All(); } catch (e) { console.error('KPI1 chart rendering failed:', e); }
+        }
+        window.requestAnimationFrame(() => {
+          window.dispatchEvent(new Event('resize'));
+        });
+      }
     }
 
     // The faulty-data view never displayed the status scoreboard before it was moved into the sticky band.

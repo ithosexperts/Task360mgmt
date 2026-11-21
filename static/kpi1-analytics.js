@@ -453,6 +453,7 @@
   }
 
   window.refreshKpi1Analytics = loadKpi1Analytics;
+  window.renderKpi1All = renderAll;
   window.addEventListener('task360:view-changed', event => updateMode(event.detail?.mode || activeGlobalMode()));
   window.addEventListener('load', () => loadKpi1Analytics(false), { once: true });
   byId('refresh-button')?.addEventListener('click', () => loadKpi1Analytics(true));

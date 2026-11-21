@@ -693,25 +693,32 @@ function renderTable(data) {
     };
     const displayValue = value => value == null || String(value).trim() === '' ? '—' : String(value);
 
-    const taskCols = [
+    if (typeof window.task360ExtraColsCollapsed !== 'boolean') {
+      window.task360ExtraColsCollapsed = true;
+    }
+
+    const allTaskCols = [
       { label: 'Record', width: 54, aliases: ['Record #', 'Record ID', 'RowID', 'Task ID'] },
       { label: 'FMS Name', width: 95, aliases: ['FMS Name'] },
       { label: 'Stage No', width: 55, aliases: ['Stage No', 'StageNo', 'Stage_No'] },
       { label: 'Stage Name', width: 105, aliases: ['Stage Name'] },
       { label: 'Doer Name', width: 88, aliases: ['Doer Name'] },
-      { label: 'Manager Code', width: 66, aliases: ['Manager Code'] },
-      { label: 'Manager Name', width: 86, aliases: ['Manager Name'] },
+      { label: 'Manager Code', width: 66, aliases: ['Manager Code'], isExtra: true },
+      { label: 'Manager Name', width: 86, aliases: ['Manager Name'], isExtra: true },
       { label: 'Task Status', width: 77, aliases: ['Task Status'] },
       { label: 'Planned', width: 98, aliases: ['Planned'] },
       { label: 'Lead Time', width: 66, aliases: ['Lead Time'] },
       { label: 'Forms', width: 62, forms: true },
       { label: 'Actual', width: 98, aliases: ['Actual'] },
-      { label: 'KPIRecord Key', width: 110, aliases: ['KPI Record Key', 'KPIRecord Key'] },
-      { label: 'Year', width: 52, aliases: ['KPI Year', 'Year'] },
-      { label: 'Month', width: 52, aliases: ['KPI Month', 'Month'] },
-      { label: 'Day', width: 42, aliases: ['Day No', 'Day'] },
-      { label: 'Presence Factor', width: 76, aliases: ['Presence Factor'] },
+      { label: 'KPIRecord Key', width: 110, aliases: ['KPI Record Key', 'KPIRecord Key'], isExtra: true },
+      { label: 'Year', width: 52, aliases: ['KPI Year', 'Year'], isExtra: true },
+      { label: 'Month', width: 52, aliases: ['KPI Month', 'Month'], isExtra: true },
+      { label: 'Day', width: 42, aliases: ['Day No', 'Day'], isExtra: true },
+      { label: 'Presence Factor', width: 76, aliases: ['Presence Factor'], isExtra: true },
     ];
+    const taskCols = window.task360ExtraColsCollapsed
+      ? allTaskCols.filter(col => !col.isExtra)
+      : allTaskCols;
     const kpi1Cols = [
       { label: 'KPI01 Score', width: 145, aliases: ['KPI01 Score'] },
       { label: 'KPI 1 Factored Score', width: 170, aliases: ['KPI 1 Factored Score'] },
@@ -759,11 +766,15 @@ function renderTable(data) {
         layout.style.width = '100%';
         layout.style.minWidth = '0';
         if (taskPane) taskPane.style.width = '100%';
-        if (taskViewport) taskViewport.style.overflowX = 'hidden';
-        if (taskTable) taskTable.style.width = '100%';
+        if (taskViewport) taskViewport.style.overflowX = window.task360ExtraColsCollapsed ? 'hidden' : 'auto';
+        if (taskTable) taskTable.style.width = window.task360ExtraColsCollapsed ? '100%' : `max(100%, ${taskTableWidth}px)`;
         taskColsEls.forEach((col, index) => {
-          const percent = taskCols[index] ? (taskCols[index].width / taskTableWidth) * 100 : 0;
-          col.style.width = `${percent.toFixed(5)}%`;
+          if (window.task360ExtraColsCollapsed) {
+            const percent = taskCols[index] ? (taskCols[index].width / taskTableWidth) * 100 : 0;
+            col.style.width = `${percent.toFixed(5)}%`;
+          } else {
+            if (taskCols[index]) col.style.width = `${taskCols[index].width}px`;
+          }
         });
       } else {
         // When a KPI card is opened, preserve the familiar table and pane widths.
@@ -790,6 +801,16 @@ function renderTable(data) {
         button.title = `${expanded ? 'Collapse' : 'Expand'} ${label}`;
         button.classList.toggle('is-active', expanded);
       });
+
+      const extraColsBtn = document.getElementById('task360-toggle-extra-cols');
+      if (extraColsBtn) {
+        const isExpanded = !window.task360ExtraColsCollapsed;
+        extraColsBtn.setAttribute('aria-expanded', String(isExpanded));
+        extraColsBtn.setAttribute('aria-label', `${isExpanded ? 'Collapse' : 'Expand'} Manager & Metadata columns`);
+        extraColsBtn.title = `${isExpanded ? 'Collapse' : 'Expand'} Manager Code, Manager Name, KPIRecord Key, Year, Month, Day, Presence Factor columns`;
+        extraColsBtn.classList.toggle('is-active', isExpanded);
+      }
+
       layout.querySelectorAll('.task360-pane').forEach(pane => pane._task360UpdateScrollButtons?.());
     };
     const panes = [
@@ -991,6 +1012,13 @@ function renderTable(data) {
         window.requestAnimationFrame(alignHeights);
       };
     });
+    const extraColsBtn = document.getElementById('task360-toggle-extra-cols');
+    if (extraColsBtn) {
+      extraColsBtn.onclick = () => {
+        window.task360ExtraColsCollapsed = !window.task360ExtraColsCollapsed;
+        renderTable(computeFilteredData());
+      };
+    }
     setMergedPaneLayout();
     window.requestAnimationFrame(() => {
       alignHeights();
@@ -1153,6 +1181,11 @@ window.onload = function() {
   attach('drill-back', 'click', () => { 
       if (DRILL.stage) DRILL.stage = null; else if (DRILL.fms) DRILL.fms = null; else DRILL.status = null; 
       currentPage = 1; renderAll(); 
+  });
+
+  attach('task360-toggle-extra-cols', 'click', () => {
+      window.task360ExtraColsCollapsed = !window.task360ExtraColsCollapsed;
+      renderTable(computeFilteredData());
   });
 
   attach('prev-page', 'click', () => { if (currentPage > 1) { currentPage--; renderTable(computeFilteredData()); } });
