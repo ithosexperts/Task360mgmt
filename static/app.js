@@ -696,6 +696,7 @@ function renderTable(data) {
     if (typeof window.task360ExtraColsCollapsed !== 'boolean') {
       window.task360ExtraColsCollapsed = true;
     }
+    document.body.classList.toggle('task360-extra-cols-collapsed', window.task360ExtraColsCollapsed);
 
     const allTaskCols = [
       { label: 'Record', width: 54, aliases: ['Record #', 'Record ID', 'RowID', 'Task ID'] },
@@ -809,6 +810,7 @@ function renderTable(data) {
         extraColsBtn.setAttribute('aria-label', `${isExpanded ? 'Collapse' : 'Expand'} Manager & Metadata columns`);
         extraColsBtn.title = `${isExpanded ? 'Collapse' : 'Expand'} Manager Code, Manager Name, KPIRecord Key, Year, Month, Day, Presence Factor columns`;
         extraColsBtn.classList.toggle('is-active', isExpanded);
+        extraColsBtn.onclick = window.toggleTask360ExtraCols;
       }
 
       layout.querySelectorAll('.task360-pane').forEach(pane => pane._task360UpdateScrollButtons?.());
@@ -850,6 +852,7 @@ function renderTable(data) {
       pane.cols.forEach(col => {
         const c = document.createElement('col');
         c.style.width = `${col.width}px`;
+        if (col.isExtra) c.dataset.extraCol = 'true';
         colgroup.appendChild(c);
       });
       table.appendChild(colgroup);
@@ -862,6 +865,7 @@ function renderTable(data) {
         th.scope = 'col';
         th.textContent = col.label;
         th.title = col.label;
+        if (col.isExtra) th.dataset.extraCol = 'true';
         headerRow.appendChild(th);
       });
       thead.appendChild(headerRow);
@@ -873,6 +877,7 @@ function renderTable(data) {
         tr.dataset.rowIndex = String(rowIndex);
         pane.cols.forEach(col => {
           const td = document.createElement('td');
+          if (col.isExtra) td.dataset.extraCol = 'true';
           if (col.forms) {
             const recordId = readValue(row, 'Record #', 'Record ID', 'RowID', 'Task ID');
             const appId = readValue(row, 'App ID', 'AppID', 'App_ID', 'Application ID');
@@ -1012,12 +1017,14 @@ function renderTable(data) {
         window.requestAnimationFrame(alignHeights);
       };
     });
+    window.toggleTask360ExtraCols = function() {
+      window.task360ExtraColsCollapsed = !window.task360ExtraColsCollapsed;
+      document.body.classList.toggle('task360-extra-cols-collapsed', window.task360ExtraColsCollapsed);
+      renderTable(computeFilteredData());
+    };
     const extraColsBtn = document.getElementById('task360-toggle-extra-cols');
     if (extraColsBtn) {
-      extraColsBtn.onclick = () => {
-        window.task360ExtraColsCollapsed = !window.task360ExtraColsCollapsed;
-        renderTable(computeFilteredData());
-      };
+      extraColsBtn.onclick = window.toggleTask360ExtraCols;
     }
     setMergedPaneLayout();
     window.requestAnimationFrame(() => {
@@ -1181,11 +1188,6 @@ window.onload = function() {
   attach('drill-back', 'click', () => { 
       if (DRILL.stage) DRILL.stage = null; else if (DRILL.fms) DRILL.fms = null; else DRILL.status = null; 
       currentPage = 1; renderAll(); 
-  });
-
-  attach('task360-toggle-extra-cols', 'click', () => {
-      window.task360ExtraColsCollapsed = !window.task360ExtraColsCollapsed;
-      renderTable(computeFilteredData());
   });
 
   attach('prev-page', 'click', () => { if (currentPage > 1) { currentPage--; renderTable(computeFilteredData()); } });

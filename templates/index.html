@@ -5,13 +5,13 @@
   <title>Task 360 Management System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=task360-kpi-hover-arrows-sticky-20261026-v3">
+  <link rel="stylesheet" href="/static/style.css?v=task360-20261121-v7">
   <style>
       /* Fix for Calendar Icon appearing dark on dark mode */
       input[type="date"] { color-scheme: light; }
   </style>
 </head>
-<body class="task360-filters-charts-collapsed">
+<body class="task360-filters-charts-collapsed task360-extra-cols-collapsed">
 
   <div id="task360-sticky-area" class="task360-sticky-area is-collapsed">
     <header class="task360-page-header p-4 flex flex-col gap-3 md:flex-row md:justify-between md:items-center card rounded-none">
@@ -157,7 +157,7 @@
             <button type="button" class="task360-kpi-control task360-kpi-control--kpi2" data-task360-pane-toggle="kpi2" aria-expanded="false" aria-controls="task360-kpi2-pane-content" aria-label="Expand KPI 2 Completion">
               <span class="task360-kpi-control-icon" aria-hidden="true">◉</span><span>KPI 2 · Completion</span>
             </button>
-            <button type="button" id="task360-toggle-extra-cols" class="task360-kpi-control task360-kpi-control--extra-cols" aria-expanded="false" aria-label="Expand Manager &amp; Metadata columns" title="Expand or collapse Manager Code, Manager Name, KPIRecord Key, Year, Month, Day, Presence Factor">
+            <button type="button" id="task360-toggle-extra-cols" class="task360-kpi-control task360-kpi-control--extra-cols" aria-expanded="false" onclick="toggleTask360ExtraCols()" aria-label="Expand Manager &amp; Metadata columns" title="Expand or collapse Manager Code, Manager Name, KPIRecord Key, Year, Month, Day, Presence Factor">
               <span class="task360-kpi-control-icon" aria-hidden="true">◉</span><span id="task360-toggle-extra-cols-label">Manager &amp; Metadata</span>
             </button>
           </div>
@@ -205,10 +205,24 @@
     </div>
   </main>
 
-  <script src="/static/app.js?v=task360-kpi-hover-arrows-sticky-20261026-v3"></script>
-  <script src="/static/stage_form.js?v=task360-load-all-rows-20261024-v1"></script>
-  <script src="/static/kpi1-analytics.js?v=light-blue-pending-20261024-v1"></script>
+  <script src="/static/app.js?v=task360-20261121-v7"></script>
+  <script src="/static/stage_form.js?v=task360-20261121-v7"></script>
+  <script src="/static/kpi1-analytics.js?v=task360-20261121-v7"></script>
   <script>
+    window.task360ExtraColsCollapsed = true;
+
+    function toggleTask360ExtraCols() {
+      if (typeof window.toggleTask360ExtraCols === 'function' && window.toggleTask360ExtraCols !== toggleTask360ExtraCols) {
+        window.toggleTask360ExtraCols();
+        return;
+      }
+      window.task360ExtraColsCollapsed = !window.task360ExtraColsCollapsed;
+      document.body.classList.toggle('task360-extra-cols-collapsed', window.task360ExtraColsCollapsed);
+      if (typeof renderTable === 'function' && typeof computeFilteredData === 'function') {
+        renderTable(computeFilteredData());
+      }
+    }
+
     function toggleTask360FilterArea() {
       const stickyArea = document.getElementById('task360-sticky-area');
       const toggleButton = document.getElementById('toggle-filters-scoreboard');

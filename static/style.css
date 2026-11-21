@@ -874,6 +874,7 @@ body.task360-filters-charts-collapsed #kpi2-analytics-section,
 .task360-kpi-control.is-active { color: #fff; border-color: #4e1f6e; background: linear-gradient(135deg, #4e1f6e, #6a4c93); box-shadow: 0 5px 14px rgba(78,31,110,.22); }
 .task360-kpi-control--kpi2.is-active { border-color: #1689b5; background: linear-gradient(135deg, #137fa8, #43adc9); box-shadow: 0 5px 14px rgba(19,127,168,.20); }
 .task360-kpi-control--extra-cols.is-active { border-color: #2b3a67; background: linear-gradient(135deg, #2b3a67, #49589a); box-shadow: 0 5px 14px rgba(43,58,103,.22); }
+body.task360-extra-cols-collapsed [data-extra-col="true"] { display: none !important; }
 .task360-kpi-control:focus-visible { outline: 3px solid rgba(112,135,235,.48); outline-offset: 3px; }
 .task360-kpi-pane.is-collapsed { display: none !important; }
 .task360-kpi-pane .task360-pane-title { min-height: 46px; }
